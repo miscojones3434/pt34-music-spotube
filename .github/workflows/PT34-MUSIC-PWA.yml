@@ -1,0 +1,225 @@
+name: Publish PT34-MUSIC PWA
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pt34-music-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.35.2
+          channel: stable
+          cache: true
+
+      - name: Create build environment
+        run: |
+          envsubst < .env.example > .env
+        env:
+          ENABLE_UPDATE_CHECK: "0"
+          LASTFM_API_KEY: ""
+          LASTFM_API_SECRET: ""
+          RELEASE_CHANNEL: stable
+          HIDE_DONATIONS: "1"
+
+      - name: Apply PT34-MUSIC web branding
+        run: |
+          python3 -m pip install --disable-pip-version-check --quiet Pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          from PIL import Image
+
+          root = Path('.')
+          web = root / 'web'
+          icon_dir = web / 'icons'
+          source_logo = icon_dir / 'Icon-512.png'
+          if not source_logo.is_file():
+              raise SystemExit('Missing web/icons/Icon-512.png')
+
+          logo = Image.open(source_logo).convert('RGB')
+          bg = (11, 11, 19)
+
+          def square(size, safe=1.0):
+              if safe >= 1:
+                  return logo.resize((size, size), Image.Resampling.LANCZOS)
+              canvas = Image.new('RGB', (size, size), bg)
+              inner = round(size * safe)
+              art = logo.resize((inner, inner), Image.Resampling.LANCZOS)
+              canvas.paste(art, ((size-inner)//2, (size-inner)//2))
+              return canvas
+
+          def save(image, path):
+              path.parent.mkdir(parents=True, exist_ok=True)
+              image.save(path, 'PNG')
+
+          save(square(192), icon_dir / 'Icon-192.png')
+          save(square(512), icon_dir / 'Icon-512.png')
+          save(square(192, .80), icon_dir / 'Icon-maskable-192.png')
+          save(square(512, .80), icon_dir / 'Icon-maskable-512.png')
+          save(square(64), web / 'favicon.png')
+
+          brand = root / 'assets' / 'branding'
+          save(square(512), brand / 'spotube-logo.png')
+          save(square(512), brand / 'spotube-logo-light.png')
+          save(square(512), brand / 'spotube-logo-foreground.png')
+          save(square(432, .78), brand / 'spotube-logo_android12.png')
+          save(square(1024), brand / 'spotube-logo-macos.png')
+
+          splash = web / 'splash' / 'img'
+          for label, size in [('1x', 256), ('2x', 512), ('3x', 768), ('4x', 1024)]:
+              image = square(size)
+              for prefix in ('dark-', 'light-', 'branding-', 'branding-dark-'):
+                  save(image, splash / f'{prefix}{label}.png')
+          save(Image.new('RGB', (1200, 1200), bg), splash / 'light-background.png')
+
+          manifest = {
+              'name': 'PT34-MUSIC',
+              'short_name': 'PT34-MUSIC',
+              'id': './',
+              'start_url': './',
+              'scope': './',
+              'display': 'standalone',
+              'display_override': ['window-controls-overlay', 'standalone'],
+              'background_color': '#0B0B13',
+              'theme_color': '#7C3AED',
+              'description': 'PT34-MUSIC · reproductor musical multidispositivo',
+              'lang': 'es-ES',
+              'orientation': 'any',
+              'categories': ['music', 'entertainment'],
+              'prefer_related_applications': False,
+              'icons': [
+                  {'src': 'icons/Icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any'},
+                  {'src': 'icons/Icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any'},
+                  {'src': 'icons/Icon-maskable-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'maskable'},
+                  {'src': 'icons/Icon-maskable-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'},
+              ],
+          }
+          (web / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          (web / 'index.html').write_text('''<!doctype html>
+          <html lang="es">
+          <head>
+            <base href="$FLUTTER_BASE_HREF">
+            <meta charset="UTF-8">
+            <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+            <meta name="description" content="PT34-MUSIC · reproductor musical multidispositivo">
+            <meta name="theme-color" content="#7C3AED">
+            <meta name="color-scheme" content="dark">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+            <meta name="apple-mobile-web-app-title" content="PT34-MUSIC">
+            <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+            <link rel="apple-touch-icon" href="icons/Icon-192.png">
+            <link rel="icon" type="image/png" href="favicon.png">
+            <link rel="manifest" href="manifest.json">
+            <title>PT34-MUSIC</title>
+            <style>
+              :root { background: #0b0b13; color: #fff; }
+              html, body { width: 100%; min-height: 100%; margin: 0; background: #0b0b13; }
+              body { overflow: hidden; }
+              #splash { position:fixed; inset:0; z-index:2147483647; display:grid; place-items:center; padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); background:radial-gradient(circle at 50% 38%, rgba(124,58,237,.20), transparent 42%), #0b0b13; opacity:1; transition:opacity .28s ease; }
+              #splash.is-hidden { opacity:0; pointer-events:none; }
+              .splash-content { display:grid; place-items:center; gap:14px; text-align:center; }
+              .splash-art { width:min(64vw,288px); min-width:168px; height:auto; border-radius:24px; box-shadow:0 18px 54px rgba(124,58,237,.30); }
+              .splash-wordmark { font:700 clamp(15px,3.2vw,21px)/1.1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing:.17em; color:#f7f5ff; }
+              .splash-status { font:500 14px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#bdb6d6; }
+              @media (prefers-reduced-motion: reduce) { #splash { transition:none; } }
+            </style>
+            <script>
+              function removeSplashFromWeb() { const splash=document.getElementById('splash'); if (!splash) return; splash.classList.add('is-hidden'); window.setTimeout(() => splash.remove(), 320); }
+              window.addEventListener('load', () => { if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { scope:'./' }).catch(() => {}); });
+            </script>
+          </head>
+          <body>
+            <div id="splash" role="status" aria-live="polite" aria-label="Cargando PT34-MUSIC"><div class="splash-content"><img class="splash-art" src="splash/img/dark-2x.png" alt="" aria-hidden="true"><div id="splash-branding" class="splash-wordmark">PT34-MUSIC</div><div class="splash-status">Preparando tu música</div></div></div>
+            <script src="flutter_bootstrap.js" async></script>
+          </body>
+          </html>
+          ''', encoding='utf-8')
+
+          (web / 'flutter_bootstrap.js').write_text('''{{flutter_js}}
+          {{flutter_build_config}}
+          (() => {
+            const closeSplash = () => { if (typeof removeSplashFromWeb === 'function') removeSplashFromWeb(); };
+            _flutter.loader.load({ onEntrypointLoaded: async (engineInitializer) => {
+              const appRunner = await engineInitializer.initializeEngine();
+              await appRunner.runApp();
+              requestAnimationFrame(() => requestAnimationFrame(closeSplash));
+            }});
+          })();
+          ''', encoding='utf-8')
+
+          (web / 'sw.js').write_text('''const CACHE_PREFIX = 'pt34-music-shell';
+          const CACHE_NAME = `${CACHE_PREFIX}-__BUILD_ID__`;
+          const APP_SHELL = ['./', './index.html', './manifest.json', './favicon.png', './flutter_bootstrap.js', './icons/Icon-192.png', './icons/Icon-512.png', './icons/Icon-maskable-192.png', './icons/Icon-maskable-512.png', './splash/img/dark-2x.png'];
+          self.addEventListener('install', event => event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())));
+          self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim())));
+          const sameOriginGet = request => request.method === 'GET' && new URL(request.url).origin === self.location.origin;
+          const store = async (request, response) => { if (response && response.ok && response.type === 'basic') (await caches.open(CACHE_NAME)).put(request, response.clone()); return response; };
+          self.addEventListener('fetch', event => {
+            if (!sameOriginGet(event.request)) return;
+            if (event.request.mode === 'navigate') {
+              event.respondWith(fetch(event.request).then(response => store(event.request, response)).catch(async () => (await caches.match(event.request)) || (await caches.match('./index.html'))));
+              return;
+            }
+            event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request).then(response => store(event.request, response))));
+          });
+          ''', encoding='utf-8')
+
+          main = root / 'lib' / 'main.dart'
+          content = main.read_text(encoding='utf-8').replace("title: 'Spotube'", "title: 'PT34-MUSIC'").replace('appName: "Spotube"', 'appName: "PT34-MUSIC"')
+          main.write_text(content, encoding='utf-8')
+          for arb in (root / 'lib' / 'l10n').glob('app_*.arb'):
+              arb.write_text(arb.read_text(encoding='utf-8').replace('Spotube', 'PT34-MUSIC'), encoding='utf-8')
+          PY
+
+      - name: Fetch packages and generate source
+        run: |
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          flutter gen-l10n
+
+      - name: Build multidispositivo web app
+        run: |
+          flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+          cp web/sw.js build/web/sw.js
+          sed -i "s/__BUILD_ID__/${{ github.sha }}/g" build/web/sw.js
+          touch build/web/.nojekyll
+          test -f build/web/index.html
+          test -f build/web/manifest.json
+          test -f build/web/sw.js
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
