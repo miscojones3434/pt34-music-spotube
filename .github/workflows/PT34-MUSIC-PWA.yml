@@ -17,12 +17,6 @@ jobs:
     env:
       FLUTTER_VERSION: "3.35.2"
       CHANNEL: "stable"
-      DOTENV: |
-        ENABLE_UPDATE_CHECK=0
-        LASTFM_API_KEY=
-        LASTFM_API_SECRET=
-        RELEASE_CHANNEL=stable
-        HIDE_DONATIONS=1
 
     steps:
       - name: Descargar proyecto
@@ -78,14 +72,14 @@ jobs:
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
-            -dname "CN=PT34-MUSIC, OU=PT34, O=PT34-MUSIC, L=España, ST=España, C=ES" \
+            -dname "CN=PT34-MUSIC, OU=PT34, O=PT34-MUSIC, L=Madrid, ST=Madrid, C=ES" \
             -noprompt
 
           cat > android/key.properties <<'EOF'
           storePassword=pt34music
           keyPassword=pt34music
           keyAlias=pt34music
-          storeFile=app/upload-keystore.jks
+          storeFile=upload-keystore.jks
           EOF
 
       - name: Compilar APK Android
