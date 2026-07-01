@@ -62,8 +62,10 @@ jobs:
           dart run build_runner build --delete-conflicting-outputs
           flutter gen-l10n
 
-      - name: Crear firma temporal para la APK
+      - name: Crear firma temporal para APK
         run: |
+          mkdir -p android/app/app
+
           keytool -genkeypair -v \
             -keystore android/app/upload-keystore.jks \
             -storepass pt34music \
@@ -75,6 +77,8 @@ jobs:
             -dname "CN=PT34-MUSIC, OU=PT34, O=PT34-MUSIC, L=Madrid, ST=Madrid, C=ES" \
             -noprompt
 
+          cp android/app/upload-keystore.jks android/app/app/upload-keystore.jks
+
           cat > android/key.properties <<'EOF'
           storePassword=pt34music
           keyPassword=pt34music
@@ -85,7 +89,10 @@ jobs:
       - name: Compilar APK Android
         run: |
           dart cli/cli.dart build --arch=all android
-          cp build/Spotube-android-all-arch.apk build/PT34-MUSIC-android-all-arch.apk
+          find build -name "*.apk" -type f -print
+          APK_FILE="$(find build -name "*.apk" -type f | head -n 1)"
+          test -n "$APK_FILE"
+          cp "$APK_FILE" build/PT34-MUSIC-android-all-arch.apk
 
       - name: Subir APK terminada
         uses: actions/upload-artifact@v4
