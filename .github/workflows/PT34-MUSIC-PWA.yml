@@ -17,13 +17,13 @@ permissions:
 
 concurrency:
   group: pt34-music-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     name: Compilar PT34-MUSIC Web
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Descargar proyecto
@@ -39,35 +39,32 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Crear proyecto web mínimo
+      - name: Crear configuración local
         run: |
-          rm -rf .pt34-web
+          cat > .env <<'EOF'
+          ENABLE_UPDATE_CHECK=0
+          LASTFM_API_KEY=
+          LASTFM_API_SECRET=
+          RELEASE_CHANNEL=stable
+          HIDE_DONATIONS=1
+          EOF
 
-          flutter create \
-            --platforms=web \
-            --project-name pt34_music_web \
-            .pt34-web
+      - name: Descargar dependencias
+        run: flutter pub get
 
-          cp lib/main_web.dart .pt34-web/lib/main.dart
-
-      - name: Compilar solo PT34-MUSIC Web
-        working-directory: .pt34-web
+      - name: Compilar PT34-MUSIC Web
         run: |
-          flutter pub get
-
           flutter build web \
             --release \
+            --target lib/main_web.dart \
             --base-href "/pt34-music-spotube/"
 
-      - name: Aplicar logo y PWA
+      - name: Aplicar logo PT34-MUSIC
         run: |
-          cp assets/branding/pt34-music-logo.png \
-            .pt34-web/build/web/pt34-music-logo.png
+          cp assets/branding/pt34-music-logo.png build/web/pt34-music-logo.png
+          cp build/web/index.html build/web/404.html
 
-          cp .pt34-web/build/web/index.html \
-            .pt34-web/build/web/404.html
-
-          cat > .pt34-web/build/web/manifest.json <<'JSON'
+          cat > build/web/manifest.json <<'JSON'
           {
             "name": "PT34-MUSIC",
             "short_name": "PT34-MUSIC",
@@ -92,13 +89,12 @@ jobs:
       - name: Subir PWA
         uses: actions/upload-pages-artifact@v4
         with:
-          path: .pt34-web/build/web
+          path: build/web
 
   deploy:
     name: Publicar PT34-MUSIC
     needs: build
     runs-on: ubuntu-22.04
-    timeout-minutes: 6
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
