@@ -1,4 +1,4 @@
-name: PT34-MUSIC · Spotube Web Real
+name: PT34-MUSIC · Spotube Web
 
 on:
   workflow_dispatch:
@@ -6,20 +6,31 @@ on:
     branches:
       - master
     paths:
+      - "lib/main_web.dart"
       - ".github/workflows/PT34-MUSIC-PWA.yml"
+      - "assets/branding/pt34-music-logo.png"
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pt34-music-pages
+  cancel-in-progress: true
 
 jobs:
-  comprobar-spotube-web:
-    name: Compilar Spotube real para web
+  build:
+    name: Compilar PT34-MUSIC Web
     runs-on: ubuntu-22.04
-    timeout-minutes: 25
+    timeout-minutes: 15
 
     steps:
-      - name: Descargar Spotube
+      - name: Descargar proyecto
         uses: actions/checkout@v4
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Instalar Flutter
         uses: subosito/flutter-action@v2.18.0
@@ -38,23 +49,57 @@ jobs:
           HIDE_DONATIONS=1
           EOF
 
-      - name: Descargar dependencias reales
-        run: |
-          set -o pipefail
-          flutter pub get 2>&1 | tee spotube-web-build.log
+      - name: Descargar dependencias
+        run: flutter pub get
 
-      - name: Compilar Spotube real
+      - name: Compilar entrada web de Spotube
         run: |
-          set -o pipefail
           flutter build web \
             --release \
-            --base-href "/pt34-music-spotube/" \
-            2>&1 | tee -a spotube-web-build.log
+            --target lib/main_web.dart \
+            --base-href "/pt34-music-spotube/"
 
-      - name: Guardar registro de compilación
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Aplicar identidad PT34-MUSIC
+        run: |
+          cp assets/branding/pt34-music-logo.png build/web/pt34-music-logo.png
+
+          cat > build/web/manifest.json <<'JSON'
+          {
+            "name": "PT34-MUSIC",
+            "short_name": "PT34-MUSIC",
+            "start_url": "./",
+            "scope": "./",
+            "display": "standalone",
+            "background_color": "#100E14",
+            "theme_color": "#9B5CFF",
+            "description": "PT34-MUSIC · Spotube Web",
+            "lang": "es-ES",
+            "icons": [
+              {
+                "src": "pt34-music-logo.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+              }
+            ]
+          }
+          JSON
+
+      - name: Subir PWA
+        uses: actions/upload-pages-artifact@v4
         with:
-          name: Spotube-Web-Log
-          path: spotube-web-build.log
-          if-no-files-found: warn
+          path: build/web
+
+  deploy:
+    name: Publicar PT34-MUSIC
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Publicar PWA
+        id: deployment
+        uses: actions/deploy-pages@v4
