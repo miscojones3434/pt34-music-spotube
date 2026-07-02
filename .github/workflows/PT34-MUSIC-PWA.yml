@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    name: Crear PWA PT34-MUSIC
+    name: Biblioteca y reproductor PT34-MUSIC
     runs-on: ubuntu-latest
     timeout-minutes: 3
 
@@ -32,6 +32,7 @@ jobs:
         run: |
           rm -rf site
           mkdir -p site
+          touch site/.nojekyll
 
           cat > site/index.html <<'HTML'
           <!doctype html>
@@ -46,352 +47,463 @@ jobs:
             <title>PT34-MUSIC</title>
 
             <style>
-              :root {
-                --bg: #111015;
-                --surface: #1b1821;
-                --surface-2: #25202c;
-                --purple: #9b5cff;
-                --purple-light: #d8c2ff;
-                --text: #f4eff8;
-                --muted: #b8b0c1;
-                --line: rgba(255,255,255,.09);
+              :root{
+                --bg:#111015;
+                --surface:#1c1822;
+                --surface2:#282130;
+                --purple:#9b5cff;
+                --light:#d8c2ff;
+                --text:#f5eff8;
+                --muted:#b8b0c1;
+                --line:rgba(255,255,255,.09);
+                --danger:#ff6d80;
               }
 
-              * { box-sizing: border-box; }
-
-              body {
-                margin: 0;
-                min-height: 100vh;
-                background: var(--bg);
-                color: var(--text);
-                font-family: Arial, Helvetica, sans-serif;
+              *{box-sizing:border-box}
+              html{background:var(--bg)}
+              body{
+                margin:0;
+                min-height:100vh;
+                background:var(--bg);
+                color:var(--text);
+                font-family:Arial,Helvetica,sans-serif;
               }
 
-              button, input {
-                font: inherit;
+              button,input{font:inherit}
+              button{border:0;cursor:pointer}
+              button:active{transform:scale(.98)}
+
+              .app{
+                width:min(760px,100%);
+                min-height:100vh;
+                margin:0 auto;
+                padding-bottom:178px;
               }
 
-              button {
-                border: 0;
-                cursor: pointer;
+              header{
+                display:flex;
+                align-items:center;
+                gap:12px;
+                padding:20px;
               }
 
-              .app {
-                width: min(760px, 100%);
-                min-height: 100vh;
-                margin: 0 auto;
-                padding-bottom: 145px;
+              .logo{
+                width:49px;
+                height:49px;
+                display:grid;
+                place-items:center;
+                border-radius:16px;
+                background:var(--purple);
+                color:#fff;
+                font-size:27px;
+                font-weight:900;
               }
 
-              header {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                padding: 20px;
+              .brand{flex:1}
+              .brand strong{
+                display:block;
+                font-size:21px;
+                letter-spacing:.4px;
               }
 
-              .logo {
-                width: 48px;
-                height: 48px;
-                display: grid;
-                place-items: center;
-                border-radius: 16px;
-                background: var(--purple);
-                color: white;
-                font-size: 27px;
-                font-weight: 900;
+              .brand span{
+                display:block;
+                margin-top:3px;
+                color:var(--muted);
+                font-size:13px;
               }
 
-              .brand {
-                flex: 1;
+              .install{
+                padding:10px 12px;
+                border-radius:14px;
+                background:var(--surface);
+                color:var(--light);
+                font-weight:700;
               }
 
-              .brand strong {
-                display: block;
-                font-size: 20px;
-                letter-spacing: .5px;
+              main{padding:0 20px 28px}
+              .page{display:none}
+              .page.active{display:block}
+
+              h1,h2,h3{margin:0}
+              h2{
+                margin:28px 0 14px;
+                font-size:21px;
               }
 
-              .brand span {
-                color: var(--muted);
-                font-size: 13px;
+              .search{
+                width:100%;
+                padding:16px 18px;
+                border:0;
+                outline:0;
+                border-radius:18px;
+                background:var(--surface);
+                color:#fff;
+                font-size:16px;
               }
 
-              .install {
-                padding: 10px 13px;
-                border-radius: 14px;
-                background: var(--surface);
-                color: var(--purple-light);
+              .hero{
+                margin-top:20px;
+                padding:24px;
+                border-radius:28px;
+                background:linear-gradient(135deg,#9b5cff,#56319d);
               }
 
-              main {
-                padding: 0 20px 30px;
+              .hero h1{
+                font-size:31px;
+                margin-bottom:10px;
               }
 
-              .page {
-                display: none;
+              .hero p{
+                margin:0;
+                max-width:480px;
+                line-height:1.45;
+                font-size:16px;
               }
 
-              .page.active {
-                display: block;
+              .primary{
+                margin-top:20px;
+                padding:14px 19px;
+                border-radius:16px;
+                background:#fff;
+                color:#542a9c;
+                font-weight:900;
               }
 
-              .searchbox {
-                width: 100%;
-                border: 0;
-                outline: 0;
-                border-radius: 18px;
-                padding: 16px 18px;
-                background: var(--surface);
-                color: white;
-                font-size: 16px;
+              .stats{
+                display:grid;
+                grid-template-columns:repeat(3,1fr);
+                gap:10px;
+                margin-top:18px;
               }
 
-              .hero {
-                margin-top: 20px;
-                padding: 24px;
-                border-radius: 28px;
-                background: linear-gradient(135deg, #9b5cff, #56319d);
+              .stat{
+                padding:14px 10px;
+                border-radius:18px;
+                background:var(--surface);
+                text-align:center;
               }
 
-              .hero h1 {
-                margin: 0 0 10px;
-                font-size: 30px;
+              .stat strong{
+                display:block;
+                font-size:22px;
+                color:var(--light);
               }
 
-              .hero p {
-                margin: 0;
-                max-width: 440px;
-                line-height: 1.45;
+              .stat span{
+                display:block;
+                margin-top:4px;
+                color:var(--muted);
+                font-size:12px;
               }
 
-              .primary {
-                margin-top: 20px;
-                padding: 13px 18px;
-                border-radius: 16px;
-                background: white;
-                color: #542a9c;
-                font-weight: 800;
+              .collections{
+                display:flex;
+                gap:12px;
+                overflow-x:auto;
+                padding-bottom:3px;
               }
 
-              h2 {
-                margin: 30px 0 14px;
-                font-size: 20px;
+              .collection{
+                min-width:164px;
+                min-height:125px;
+                padding:16px;
+                border:0;
+                border-radius:20px;
+                background:var(--surface);
+                color:var(--text);
+                text-align:left;
               }
 
-              .row {
-                display: flex;
-                gap: 12px;
-                overflow-x: auto;
-                padding-bottom: 4px;
+              .collection .icon{
+                color:var(--light);
+                font-size:28px;
               }
 
-              .card {
-                min-width: 165px;
-                min-height: 125px;
-                padding: 16px;
-                border-radius: 20px;
-                background: var(--surface);
+              .collection strong{
+                display:block;
+                margin-top:22px;
               }
 
-              .card-icon {
-                color: var(--purple-light);
-                font-size: 28px;
+              .collection span{
+                display:block;
+                margin-top:5px;
+                color:var(--muted);
+                font-size:12px;
               }
 
-              .card strong {
-                display: block;
-                margin-top: 24px;
+              .list{display:grid;gap:10px}
+
+              .item{
+                display:flex;
+                align-items:center;
+                gap:12px;
+                width:100%;
+                padding:14px;
+                border-radius:18px;
+                background:var(--surface);
+                color:var(--text);
+                text-align:left;
               }
 
-              .card span {
-                display: block;
-                margin-top: 5px;
-                color: var(--muted);
-                font-size: 12px;
+              .item-icon{
+                width:42px;
+                height:42px;
+                display:grid;
+                place-items:center;
+                flex:none;
+                border-radius:13px;
+                background:rgba(155,92,255,.2);
+                color:var(--light);
+                font-size:20px;
               }
 
-              .list {
-                display: grid;
-                gap: 10px;
-              }
-
-              .item {
-                display: flex;
-                align-items: center;
-                gap: 14px;
-                padding: 14px;
-                border-radius: 18px;
-                background: var(--surface);
-              }
-
-              .item-icon {
-                width: 42px;
-                height: 42px;
-                display: grid;
-                place-items: center;
-                border-radius: 13px;
-                background: rgba(155,92,255,.2);
-                color: var(--purple-light);
-                font-size: 20px;
-              }
-
-              .item-text {
-                flex: 1;
-              }
-
+              .item-text{flex:1;min-width:0}
               .item-text strong,
-              .item-text span {
-                display: block;
+              .item-text span{display:block}
+
+              .item-text strong{
+                overflow:hidden;
+                text-overflow:ellipsis;
+                white-space:nowrap;
               }
 
-              .item-text span {
-                margin-top: 4px;
-                color: var(--muted);
-                font-size: 13px;
+              .item-text span{
+                margin-top:4px;
+                overflow:hidden;
+                color:var(--muted);
+                font-size:13px;
+                text-overflow:ellipsis;
+                white-space:nowrap;
               }
 
-              .arrow {
-                color: var(--muted);
-                font-size: 22px;
+              .arrow{
+                color:var(--muted);
+                font-size:25px;
               }
 
-              .empty {
-                padding: 34px 20px;
-                text-align: center;
-                border-radius: 24px;
-                background: var(--surface);
-                color: var(--muted);
-                line-height: 1.5;
+              .form{
+                display:grid;
+                gap:11px;
+                padding:18px;
+                border-radius:22px;
+                background:var(--surface);
               }
 
-              .empty strong {
-                display: block;
-                margin-bottom: 8px;
-                color: white;
-                font-size: 20px;
+              .form input{
+                width:100%;
+                padding:14px;
+                border:1px solid var(--line);
+                outline:0;
+                border-radius:14px;
+                background:#121016;
+                color:#fff;
               }
 
-              .source-form {
-                display: grid;
-                gap: 12px;
-                padding: 18px;
-                border-radius: 22px;
-                background: var(--surface);
+              .form button{
+                padding:14px;
+                border-radius:14px;
+                background:var(--purple);
+                color:#fff;
+                font-weight:900;
               }
 
-              .source-form input {
-                width: 100%;
-                padding: 14px;
-                border: 1px solid var(--line);
-                border-radius: 14px;
-                outline: 0;
-                background: #121016;
-                color: white;
+              .empty{
+                padding:34px 20px;
+                border-radius:24px;
+                background:var(--surface);
+                color:var(--muted);
+                line-height:1.5;
+                text-align:center;
               }
 
-              .source-form button {
-                padding: 14px;
-                border-radius: 14px;
-                background: var(--purple);
-                color: white;
-                font-weight: 800;
+              .empty strong{
+                display:block;
+                margin-bottom:8px;
+                color:#fff;
+                font-size:20px;
               }
 
-              .player {
-                margin-top: 18px;
-                padding: 16px;
-                border-radius: 20px;
-                background: var(--surface-2);
+              .song{
+                display:grid;
+                grid-template-columns:45px 1fr auto;
+                align-items:center;
+                gap:11px;
+                padding:12px;
+                border-radius:18px;
+                background:var(--surface);
               }
 
-              .player strong,
-              .player span {
-                display: block;
+              .song-cover{
+                width:45px;
+                height:45px;
+                display:grid;
+                place-items:center;
+                border-radius:14px;
+                background:linear-gradient(135deg,#9b5cff,#6b3cc1);
+                color:#fff;
+                font-size:21px;
               }
 
-              .player span {
-                margin: 5px 0 12px;
-                color: var(--muted);
-                font-size: 13px;
+              .song-main{min-width:0}
+              .song-main strong,
+              .song-main span{display:block}
+
+              .song-main strong{
+                overflow:hidden;
+                text-overflow:ellipsis;
+                white-space:nowrap;
               }
 
-              audio {
-                width: 100%;
+              .song-main span{
+                margin-top:4px;
+                overflow:hidden;
+                color:var(--muted);
+                font-size:12px;
+                text-overflow:ellipsis;
+                white-space:nowrap;
               }
 
-              .mini {
-                position: fixed;
-                left: 50%;
-                bottom: 70px;
-                width: min(760px, 100%);
-                transform: translateX(-50%);
-                padding: 11px 18px;
-                background: #27212f;
-                border-top: 1px solid var(--line);
+              .song-tools{
+                display:flex;
+                gap:6px;
               }
 
-              .mini strong,
-              .mini span {
-                display: block;
+              .round{
+                width:36px;
+                height:36px;
+                display:grid;
+                place-items:center;
+                border-radius:12px;
+                background:var(--surface2);
+                color:var(--light);
+                font-size:17px;
               }
 
-              .mini span {
-                margin-top: 3px;
-                color: var(--muted);
-                font-size: 12px;
+              .round.delete{color:var(--danger)}
+
+              .player{
+                position:fixed;
+                z-index:3;
+                left:50%;
+                bottom:67px;
+                width:min(760px,100%);
+                transform:translateX(-50%);
+                padding:12px 16px;
+                background:#272130;
+                border-top:1px solid var(--line);
               }
 
-              nav {
-                position: fixed;
-                left: 50%;
-                bottom: 0;
-                width: min(760px, 100%);
-                transform: translateX(-50%);
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-                padding: 9px 8px max(9px, env(safe-area-inset-bottom));
-                background: #17141c;
-                border-top: 1px solid var(--line);
+              .player-top{
+                display:flex;
+                align-items:center;
+                gap:11px;
               }
 
-              .tab {
-                padding: 9px 4px;
-                background: transparent;
-                color: var(--muted);
-                font-size: 12px;
+              .player-art{
+                width:38px;
+                height:38px;
+                display:grid;
+                place-items:center;
+                border-radius:12px;
+                background:var(--purple);
               }
 
-              .tab.active {
-                color: var(--purple-light);
-                font-weight: 800;
+              .player-name{
+                flex:1;
+                min-width:0;
               }
 
-              .toast {
-                position: fixed;
-                left: 50%;
-                bottom: 152px;
-                z-index: 5;
-                max-width: calc(100% - 36px);
-                transform: translateX(-50%) translateY(20px);
-                padding: 12px 16px;
-                border-radius: 14px;
-                background: white;
-                color: #251a31;
-                font-size: 14px;
-                opacity: 0;
-                pointer-events: none;
-                transition: .2s ease;
+              .player-name strong,
+              .player-name span{display:block}
+
+              .player-name strong{
+                overflow:hidden;
+                text-overflow:ellipsis;
+                white-space:nowrap;
+                font-size:14px;
               }
 
-              .toast.show {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
+              .player-name span{
+                margin-top:2px;
+                color:var(--muted);
+                font-size:11px;
               }
 
-              [hidden] {
-                display: none !important;
+              .controls{
+                display:flex;
+                align-items:center;
+                gap:7px;
               }
+
+              .control{
+                width:35px;
+                height:35px;
+                border-radius:11px;
+                background:transparent;
+                color:#fff;
+                font-size:17px;
+              }
+
+              .control.play{
+                background:var(--purple);
+              }
+
+              .timeline{
+                width:100%;
+                margin-top:9px;
+                accent-color:var(--purple);
+              }
+
+              nav{
+                position:fixed;
+                z-index:4;
+                left:50%;
+                bottom:0;
+                width:min(760px,100%);
+                transform:translateX(-50%);
+                display:grid;
+                grid-template-columns:repeat(4,1fr);
+                padding:9px 8px max(9px,env(safe-area-inset-bottom));
+                background:#17141c;
+                border-top:1px solid var(--line);
+              }
+
+              .tab{
+                padding:8px 3px;
+                background:transparent;
+                color:var(--muted);
+                font-size:12px;
+              }
+
+              .tab.active{
+                color:var(--light);
+                font-weight:900;
+              }
+
+              .toast{
+                position:fixed;
+                z-index:8;
+                left:50%;
+                bottom:162px;
+                max-width:calc(100% - 36px);
+                transform:translateX(-50%) translateY(18px);
+                padding:12px 16px;
+                border-radius:14px;
+                background:#fff;
+                color:#251a31;
+                font-size:14px;
+                opacity:0;
+                pointer-events:none;
+                transition:.2s ease;
+              }
+
+              .toast.show{
+                opacity:1;
+                transform:translateX(-50%) translateY(0);
+              }
+
+              [hidden]{display:none!important}
             </style>
           </head>
 
@@ -408,49 +520,57 @@ jobs:
 
               <main>
                 <section class="page active" id="inicio">
-                  <input class="searchbox" id="homeSearch" placeholder="Buscar en tu biblioteca" readonly>
+                  <input class="search" id="homeSearch" readonly placeholder="Buscar en tu biblioteca">
 
                   <div class="hero">
                     <h1>Todo listo</h1>
-                    <p>Crea tu biblioteca personal y reproduce enlaces de audio propios o autorizados compatibles con tu navegador.</p>
-                    <button class="primary" data-go="biblioteca">AÑADIR FUENTE</button>
+                    <p>Añade y organiza enlaces de audio propios o autorizados. Todo queda guardado únicamente en este navegador.</p>
+                    <button class="primary" data-page="biblioteca">AÑADIR FUENTE</button>
+                  </div>
+
+                  <div class="stats">
+                    <div class="stat"><strong id="trackCount">0</strong><span>Fuentes</span></div>
+                    <div class="stat"><strong id="favoriteCount">0</strong><span>Favoritos</span></div>
+                    <div class="stat"><strong id="playingCount">—</strong><span>Ahora</span></div>
                   </div>
 
                   <h2>Tus colecciones</h2>
-                  <div class="row">
-                    <div class="card">
-                      <div class="card-icon">♥</div>
+                  <div class="collections">
+                    <button class="collection" data-page="biblioteca">
+                      <div class="icon">♥</div>
                       <strong>Favoritos</strong>
-                      <span>Tus temas guardados</span>
-                    </div>
-                    <div class="card">
-                      <div class="card-icon">♫</div>
+                      <span id="favoritesLabel">Sin favoritos</span>
+                    </button>
+
+                    <button class="collection" data-page="biblioteca">
+                      <div class="icon">♫</div>
                       <strong>Mi música</strong>
-                      <span>Tu colección personal</span>
-                    </div>
-                    <div class="card">
-                      <div class="card-icon">◉</div>
-                      <strong>Podcast</strong>
-                      <span>Programas y episodios</span>
-                    </div>
+                      <span id="libraryLabel">Biblioteca vacía</span>
+                    </button>
+
+                    <button class="collection" data-page="buscar">
+                      <div class="icon">⌕</div>
+                      <strong>Buscar</strong>
+                      <span>Encuentra tus fuentes</span>
+                    </button>
                   </div>
 
                   <h2>Empieza por aquí</h2>
                   <div class="list">
-                    <button class="item" data-go="biblioteca">
+                    <button class="item" data-page="biblioteca">
                       <div class="item-icon">＋</div>
                       <div class="item-text">
                         <strong>Añade una fuente autorizada</strong>
-                        <span>Enlace directo de audio compatible con web.</span>
+                        <span>URL directa de audio compatible con web.</span>
                       </div>
                       <div class="arrow">›</div>
                     </button>
 
-                    <button class="item" id="favoritesButton">
-                      <div class="item-icon">♥</div>
+                    <button class="item" id="exportHome">
+                      <div class="item-icon">⇩</div>
                       <div class="item-text">
-                        <strong>Crea tus favoritos</strong>
-                        <span>Guarda artistas, podcasts y colecciones.</span>
+                        <strong>Guarda una copia de tu biblioteca</strong>
+                        <span>Exporta tus fuentes a un archivo JSON.</span>
                       </div>
                       <div class="arrow">›</div>
                     </button>
@@ -459,291 +579,177 @@ jobs:
 
                 <section class="page" id="buscar">
                   <h2>Buscar</h2>
-                  <input class="searchbox" id="searchInput" placeholder="Artistas, álbumes o listas">
-
-                  <div class="list" id="searchResults" style="margin-top:18px">
-                    <div class="item result" data-name="Favoritos música">
-                      <div class="item-icon">♥</div>
-                      <div class="item-text"><strong>Favoritos</strong><span>Tu colección guardada</span></div>
-                    </div>
-                    <div class="item result" data-name="Mi música biblioteca">
-                      <div class="item-icon">♫</div>
-                      <div class="item-text"><strong>Mi música</strong><span>Tu biblioteca personal</span></div>
-                    </div>
-                    <div class="item result" data-name="Podcast episodios">
-                      <div class="item-icon">◉</div>
-                      <div class="item-text"><strong>Podcast</strong><span>Programas y episodios</span></div>
-                    </div>
-                  </div>
+                  <input class="search" id="searchInput" placeholder="Busca en tus fuentes">
+                  <div class="list" id="searchResults" style="margin-top:18px"></div>
                 </section>
 
                 <section class="page" id="biblioteca">
                   <h2>Biblioteca</h2>
 
-                  <div class="empty" id="emptyLibrary">
+                  <div class="empty" id="emptyState">
                     <strong>Tu biblioteca está vacía</strong>
-                    Añade una URL directa de audio que tengas derecho a utilizar. La fuente se guarda solamente en este navegador.
+                    Añade una URL de audio sobre la que tengas permiso de uso. La fuente se guarda en este navegador.
                   </div>
 
-                  <form class="source-form" id="sourceForm" style="margin-top:18px">
-                    <input id="sourceName" maxlength="60" placeholder="Nombre de la fuente">
-                    <input id="sourceUrl" type="url" placeholder="https://ejemplo.com/audio.mp3" required>
+                  <form class="form" id="trackForm" style="margin-top:18px">
+                    <input id="trackTitle" maxlength="70" placeholder="Nombre de la fuente, artista o emisora">
+                    <input id="trackUrl" type="url" required placeholder="https://ejemplo.com/audio.mp3">
                     <button type="submit">GUARDAR Y REPRODUCIR</button>
                   </form>
 
-                  <div class="player" id="playerPanel" hidden>
-                    <strong id="playerName"></strong>
-                    <span>Fuente local autorizada</span>
-                    <audio id="audioPlayer" controls preload="metadata"></audio>
-                  </div>
+                  <h2 id="libraryTitle">Tus fuentes</h2>
+                  <div class="list" id="libraryList"></div>
                 </section>
 
                 <section class="page" id="perfil">
                   <h2>Perfil</h2>
+
                   <div class="list">
                     <div class="item">
                       <div class="item-icon">☺</div>
                       <div class="item-text">
                         <strong>PT34-MUSIC</strong>
-                        <span>Edición PWA</span>
+                        <span>Edición PWA · datos locales</span>
                       </div>
                     </div>
-                    <div class="item">
-                      <div class="item-icon">ⓘ</div>
+
+                    <button class="item" id="exportButton">
+                      <div class="item-icon">⇩</div>
                       <div class="item-text">
-                        <strong>Acerca de</strong>
-                        <span>Biblioteca y reproductor web personal.</span>
+                        <strong>Exportar biblioteca</strong>
+                        <span>Guarda tus fuentes en un archivo JSON.</span>
                       </div>
-                    </div>
+                      <div class="arrow">›</div>
+                    </button>
+
+                    <button class="item" id="importButton">
+                      <div class="item-icon">⇧</div>
+                      <div class="item-text">
+                        <strong>Importar biblioteca</strong>
+                        <span>Recupera una copia guardada anteriormente.</span>
+                      </div>
+                      <div class="arrow">›</div>
+                    </button>
+
+                    <button class="item" id="clearButton">
+                      <div class="item-icon">×</div>
+                      <div class="item-text">
+                        <strong>Eliminar datos locales</strong>
+                        <span>Borra las fuentes guardadas de este dispositivo.</span>
+                      </div>
+                      <div class="arrow">›</div>
+                    </button>
                   </div>
+
+                  <input id="importFile" type="file" accept="application/json" hidden>
                 </section>
               </main>
             </div>
 
-            <div class="mini" id="miniPlayer" hidden>
-              <strong id="miniName">Tu reproductor</strong>
-              <span>Audio preparado para reproducir</span>
+            <div class="player" id="player" hidden>
+              <div class="player-top">
+                <div class="player-art">♫</div>
+                <div class="player-name">
+                  <strong id="nowTitle">Sin reproducción</strong>
+                  <span id="nowSubtitle">Tu reproductor personal</span>
+                </div>
+
+                <div class="controls">
+                  <button class="control" id="previousButton" aria-label="Anterior">‹</button>
+                  <button class="control play" id="playButton" aria-label="Reproducir">▶</button>
+                  <button class="control" id="nextButton" aria-label="Siguiente">›</button>
+                </div>
+              </div>
+
+              <input class="timeline" id="timeline" type="range" min="0" max="100" value="0">
             </div>
 
+            <audio id="audio" preload="metadata"></audio>
+
             <nav>
-              <button class="tab active" data-tab="inicio">⌂<br>Inicio</button>
-              <button class="tab" data-tab="buscar">⌕<br>Buscar</button>
-              <button class="tab" data-tab="biblioteca">♫<br>Biblioteca</button>
-              <button class="tab" data-tab="perfil">☺<br>Perfil</button>
+              <button class="tab active" data-page="inicio">⌂<br>Inicio</button>
+              <button class="tab" data-page="buscar">⌕<br>Buscar</button>
+              <button class="tab" data-page="biblioteca">♫<br>Biblioteca</button>
+              <button class="tab" data-page="perfil">☺<br>Perfil</button>
             </nav>
 
             <div class="toast" id="toast"></div>
 
             <script>
-              const pages = document.querySelectorAll(".page");
-              const tabs = document.querySelectorAll(".tab");
-              const toast = document.querySelector("#toast");
-              const audio = document.querySelector("#audioPlayer");
-              const sourceForm = document.querySelector("#sourceForm");
-              const sourceName = document.querySelector("#sourceName");
-              const sourceUrl = document.querySelector("#sourceUrl");
-              const playerPanel = document.querySelector("#playerPanel");
-              const emptyLibrary = document.querySelector("#emptyLibrary");
-              const playerName = document.querySelector("#playerName");
-              const miniPlayer = document.querySelector("#miniPlayer");
-              const miniName = document.querySelector("#miniName");
+              const STORAGE_KEY = "pt34_music_library_v2";
+              const CURRENT_KEY = "pt34_music_current_v2";
 
-              function showToast(message) {
-                toast.textContent = message;
-                toast.classList.add("show");
-                setTimeout(() => toast.classList.remove("show"), 2600);
+              const audio = document.querySelector("#audio");
+              const player = document.querySelector("#player");
+              const timeline = document.querySelector("#timeline");
+              const playButton = document.querySelector("#playButton");
+              const nowTitle = document.querySelector("#nowTitle");
+              const nowSubtitle = document.querySelector("#nowSubtitle");
+              const toast = document.querySelector("#toast");
+
+              let tracks = loadTracks();
+              let currentId = localStorage.getItem(CURRENT_KEY) || null;
+
+              function loadTracks() {
+                try {
+                  const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+                  return Array.isArray(value) ? value : [];
+                } catch (_) {
+                  return [];
+                }
               }
 
-              function goTo(id) {
-                pages.forEach(page => page.classList.toggle("active", page.id === id));
-                tabs.forEach(tab => tab.classList.toggle("active", tab.dataset.tab === id));
+              function saveTracks() {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(tracks));
+              }
+
+              function escapeHtml(value) {
+                return String(value).replace(/[&<>"']/g, character => ({
+                  "&":"&amp;",
+                  "<":"&lt;",
+                  ">":"&gt;",
+                  "\"":"&quot;",
+                  "'":"&#039;"
+                })[character]);
+              }
+
+              function getCurrent() {
+                return tracks.find(track => track.id === currentId) || null;
+              }
+
+              function showToast(text) {
+                toast.textContent = text;
+                toast.classList.add("show");
+                clearTimeout(window.toastTimer);
+                window.toastTimer = setTimeout(() => {
+                  toast.classList.remove("show");
+                }, 2700);
+              }
+
+              function showPage(page) {
+                document.querySelectorAll(".page").forEach(item => {
+                  item.classList.toggle("active", item.id === page);
+                });
+
+                document.querySelectorAll(".tab").forEach(item => {
+                  item.classList.toggle("active", item.dataset.page === page);
+                });
+
+                if (page === "buscar") {
+                  setTimeout(() => document.querySelector("#searchInput").focus(), 120);
+                }
+
                 window.scrollTo({ top: 0, behavior: "smooth" });
               }
 
-              tabs.forEach(tab => {
-                tab.addEventListener("click", () => goTo(tab.dataset.tab));
-              });
+              function renderStats() {
+                const favorites = tracks.filter(track => track.favorite).length;
+                const current = getCurrent();
 
-              document.querySelectorAll("[data-go]").forEach(button => {
-                button.addEventListener("click", () => goTo(button.dataset.go));
-              });
+                document.querySelector("#trackCount").textContent = tracks.length;
+                document.querySelector("#favoriteCount").textContent = favorites;
+                document.querySelector("#playingCount").textContent =
+                  current ? "♫" : "—";
 
-              document.querySelector("#homeSearch").addEventListener("click", () => {
-                goTo("buscar");
-                setTimeout(() => document.querySelector("#searchInput").focus(), 100);
-              });
-
-              document.querySelector("#favoritesButton").addEventListener("click", () => {
-                showToast("Los favoritos se activarán cuando añadas contenido.");
-              });
-
-              document.querySelector("#searchInput").addEventListener("input", event => {
-                const value = event.target.value.trim().toLowerCase();
-                document.querySelectorAll(".result").forEach(result => {
-                  result.hidden = value && !result.dataset.name.toLowerCase().includes(value);
-                });
-              });
-
-              function loadSource(source) {
-                playerName.textContent = source.name;
-                miniName.textContent = source.name;
-                audio.src = source.url;
-                playerPanel.hidden = false;
-                miniPlayer.hidden = false;
-                emptyLibrary.hidden = true;
-              }
-
-              function restoreSource() {
-                const saved = localStorage.getItem("pt34_music_source");
-                if (!saved) return;
-                try {
-                  loadSource(JSON.parse(saved));
-                } catch (_) {
-                  localStorage.removeItem("pt34_music_source");
-                }
-              }
-
-              sourceForm.addEventListener("submit", event => {
-                event.preventDefault();
-
-                const url = sourceUrl.value.trim();
-                const name = sourceName.value.trim() || "Mi fuente de audio";
-
-                try {
-                  const parsed = new URL(url);
-                  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-                    throw new Error("Protocolo no válido");
-                  }
-                } catch (_) {
-                  showToast("Introduce una URL válida que empiece por https://");
-                  return;
-                }
-
-                const source = { name, url };
-                localStorage.setItem("pt34_music_source", JSON.stringify(source));
-                loadSource(source);
-                audio.play().catch(() => {});
-                showToast("Fuente guardada en este navegador.");
-              });
-
-              let installPrompt;
-              const installButton = document.querySelector("#installButton");
-
-              window.addEventListener("beforeinstallprompt", event => {
-                event.preventDefault();
-                installPrompt = event;
-                installButton.hidden = false;
-              });
-
-              installButton.addEventListener("click", async () => {
-                if (!installPrompt) {
-                  showToast("Usa “Añadir a pantalla de inicio” en el menú del navegador.");
-                  return;
-                }
-                installPrompt.prompt();
-                await installPrompt.userChoice;
-                installPrompt = null;
-                installButton.hidden = true;
-              });
-
-              restoreSource();
-            </script>
-          </body>
-          </html>
-          HTML
-
-          cat > site/manifest.webmanifest <<'JSON'
-          {
-            "name": "PT34-MUSIC",
-            "short_name": "PT34-MUSIC",
-            "start_url": "./",
-            "scope": "./",
-            "display": "standalone",
-            "background_color": "#111015",
-            "theme_color": "#9b5cff",
-            "description": "Biblioteca y reproductor web personal PT34-MUSIC",
-            "lang": "es-ES",
-            "icons": [
-              {
-                "src": "./icon.svg",
-                "sizes": "any",
-                "type": "image/svg+xml",
-                "purpose": "any"
-              }
-            ]
-          }
-          JSON
-
-          cat > site/icon.svg <<'SVG'
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-            <rect width="512" height="512" rx="118" fill="#9b5cff"/>
-            <path fill="#fff" d="M330 102v214a85 85 0 1 1-42-74V162l-128 35v163a85 85 0 1 1-42-74V164l202-62c20-6 40 9 40 30z"/>
-          </svg>
-          SVG
-
-          cat > site/sw.js <<'JS'
-          const CACHE = "pt34-music-static-v1";
-          const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
-
-          self.addEventListener("install", event => {
-            event.waitUntil(
-              caches.open(CACHE).then(cache => cache.addAll(FILES))
-            );
-            self.skipWaiting();
-          });
-
-          self.addEventListener("activate", event => {
-            event.waitUntil(self.clients.claim());
-          });
-
-          self.addEventListener("fetch", event => {
-            if (event.request.method !== "GET") return;
-
-            const url = new URL(event.request.url);
-
-            if (url.origin !== self.location.origin) return;
-
-            event.respondWith(
-              caches.match(event.request).then(cached => {
-                return cached || fetch(event.request);
-              })
-            );
-          });
-          JS
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          file = Path("site/index.html")
-          html = file.read_text(encoding="utf-8")
-          html = html.replace(
-              "</body>",
-              """<script>
-              if ("serviceWorker" in navigator) {
-                window.addEventListener("load", () => {
-                  navigator.serviceWorker.register("./sw.js", { scope: "./" });
-                });
-              }
-              </script></body>"""
-          )
-          file.write_text(html, encoding="utf-8")
-          PY
-
-      - name: Subir PWA a Pages
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: site
-
-  deploy:
-    name: Publicar PT34-MUSIC
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Publicar PWA
-        id: deployment
-        uses: actions/deploy-pages@v4
+                document.querySelector("#favoritesLabel").textContent =
+                  favorites ? favorites + " guardado
