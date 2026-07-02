@@ -1,0 +1,19 @@
+{
+  "name": "PT34-MUSIC",
+  "short_name": "PT34-MUSIC",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#100E14",
+  "theme_color": "#9B5CFF",
+  "description": "PT34-MUSIC",
+  "lang": "es-ES",
+  "icons": [
+    {
+      "src": "pt34-music-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
