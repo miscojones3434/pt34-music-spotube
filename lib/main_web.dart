@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 
@@ -5,11 +6,45 @@ import 'package:flutter/material.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const Pt34MusicWebApp());
+  runApp(const Pt34MusicApp());
 }
 
-class WebTrack {
-  const WebTrack({
+class Pt34MusicApp extends StatelessWidget {
+  const Pt34MusicApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'PT34-MUSIC',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF9B5CFF),
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF100E14),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF1C1822),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(19),
+          ),
+        ),
+      ),
+      home: const Pt34MusicHome(),
+    );
+  }
+}
+
+String textOf(dynamic value, {String fallback = ''}) {
+  final valueText = value?.toString().trim() ?? '';
+  return valueText.isEmpty ? fallback : valueText;
+}
+
+class LibraryTrack {
+  const LibraryTrack({
     required this.id,
     required this.title,
     required this.artist,
@@ -27,8 +62,10 @@ class WebTrack {
   final String audioUrl;
   final bool favorite;
 
-  WebTrack copyWith({bool? favorite}) {
-    return WebTrack(
+  LibraryTrack copyWith({
+    bool? favorite,
+  }) {
+    return LibraryTrack(
       id: id,
       title: title,
       artist: artist,
@@ -51,116 +88,227 @@ class WebTrack {
     };
   }
 
-  factory WebTrack.fromJson(Map<String, dynamic> json) {
-    return WebTrack(
-      id: json['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      title: json['title']?.toString().trim().isNotEmpty == true
-          ? json['title'].toString().trim()
-          : 'Tema sin título',
-      artist: json['artist']?.toString().trim() ?? '',
-      album: json['album']?.toString().trim() ?? '',
-      coverUrl: json['coverUrl']?.toString().trim() ?? '',
-      audioUrl: json['audioUrl']?.toString().trim() ?? '',
+  factory LibraryTrack.fromJson(Map<String, dynamic> json) {
+    return LibraryTrack(
+      id: textOf(
+        json['id'],
+        fallback: DateTime.now().microsecondsSinceEpoch.toString(),
+      ),
+      title: textOf(json['title'], fallback: 'Tema sin título'),
+      artist: textOf(json['artist']),
+      album: textOf(json['album']),
+      coverUrl: textOf(json['coverUrl']),
+      audioUrl: textOf(json['audioUrl']),
       favorite: json['favorite'] == true,
     );
   }
 }
 
-class Pt34MusicWebApp extends StatefulWidget {
-  const Pt34MusicWebApp({super.key});
+class CatalogArtist {
+  const CatalogArtist({
+    required this.id,
+    required this.name,
+    required this.country,
+    required this.type,
+  });
 
-  @override
-  State<Pt34MusicWebApp> createState() => _Pt34MusicWebAppState();
+  final String id;
+  final String name;
+  final String country;
+  final String type;
+
+  factory CatalogArtist.fromJson(Map<String, dynamic> json) {
+    return CatalogArtist(
+      id: textOf(json['id']),
+      name: textOf(json['name'], fallback: 'Artista'),
+      country: textOf(json['country']),
+      type: textOf(json['type']),
+    );
+  }
 }
 
-class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
-  static const _storageKey = 'pt34_music_web_library_v1';
-  static const _currentKey = 'pt34_music_web_current_v1';
+class CatalogAlbum {
+  const CatalogAlbum({
+    required this.id,
+    required this.title,
+    required this.artist,
+    required this.year,
+    required this.type,
+  });
 
-  final html.AudioElement _audio = html.AudioElement();
-  final TextEditingController _searchController = TextEditingController();
+  final String id;
+  final String title;
+  final String artist;
+  final String year;
+  final String type;
 
-  List<WebTrack> _tracks = [];
-  String? _currentId;
-  int _tabIndex = 0;
-  bool _isPlaying = false;
-  double _progress = 0;
+  String get coverUrl {
+    return 'https://coverartarchive.org/release-group/$id/front-250';
+  }
+
+  factory CatalogAlbum.fromJson(Map<String, dynamic> json) {
+    final names = <String>[];
+    final credit = json['artist-credit'];
+
+    if (credit is List) {
+      for (final item in credit) {
+        if (item is Map) {
+          final map = Map<String, dynamic>.from(item);
+          final name = textOf(map['name']);
+
+          if (name.isNotEmpty) {
+            names.add(name);
+            continue;
+          }
+
+          final artist = map['artist'];
+
+          if (artist is Map) {
+            final artistName = textOf(
+              Map<String, dynamic>.from(artist)['name'],
+            );
+
+            if (artistName.isNotEmpty) {
+              names.add(artistName);
+            }
+          }
+        }
+      }
+    }
+
+    final date = textOf(json['first-release-date']);
+    final year = date.length >= 4 ? date.substring(0, 4) : date;
+
+    return CatalogAlbum(
+      id: textOf(json['id']),
+      title: textOf(json['title'], fallback: 'Álbum'),
+      artist: names.join(', '),
+      year: year,
+      type: textOf(json['primary-type']),
+    );
+  }
+}
+
+class Pt34MusicHome extends StatefulWidget {
+  const Pt34MusicHome({super.key});
+
+  @override
+  State<Pt34MusicHome> createState() => _Pt34MusicHomeState();
+}
+
+class _Pt34MusicHomeState extends State<Pt34MusicHome> {
+  static const String libraryKey = 'pt34_music_library_v3';
+  static const String currentKey = 'pt34_music_current_v3';
+
+  final html.AudioElement audio = html.AudioElement();
+  final TextEditingController catalogSearchController =
+      TextEditingController();
+
+  List<LibraryTrack> library = [];
+  List<CatalogArtist> artists = [];
+  List<CatalogAlbum> albums = [];
+  List<CatalogAlbum> artistAlbums = [];
+
+  CatalogArtist? openedArtist;
+
+  int tab = 0;
+  String? currentId;
+
+  bool catalogLoading = false;
+  bool artistLoading = false;
+  bool playing = false;
+  double progress = 0;
+
+  String? catalogError;
+
+  DateTime lastMusicBrainzRequest =
+      DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
     super.initState();
-    _tracks = _readLibrary();
-    _currentId = html.window.localStorage[_currentKey];
 
-    _audio.onPlay.listen((_) {
+    library = loadLibrary();
+    currentId = html.window.localStorage[currentKey];
+
+    final current = currentTrack;
+
+    if (current != null) {
+      audio.src = current.audioUrl;
+    }
+
+    audio.onPlay.listen((_) {
       if (mounted) {
-        setState(() => _isPlaying = true);
+        setState(() => playing = true);
       }
     });
 
-    _audio.onPause.listen((_) {
+    audio.onPause.listen((_) {
       if (mounted) {
-        setState(() => _isPlaying = false);
+        setState(() => playing = false);
       }
     });
 
-    _audio.onEnded.listen((_) => _nextTrack());
+    audio.onEnded.listen((_) => nextTrack());
 
-    _audio.onTimeUpdate.listen((_) {
-      final duration = _audio.duration;
-      if (!duration.isFinite || duration <= 0 || !mounted) {
+    audio.onTimeUpdate.listen((_) {
+      final duration = audio.duration;
+
+      if (!mounted || !duration.isFinite || duration <= 0) {
         return;
       }
 
       setState(() {
-        _progress = (_audio.currentTime / duration).clamp(0, 1).toDouble();
+        progress = (audio.currentTime / duration).clamp(0, 1).toDouble();
       });
     });
 
-    _audio.onError.listen((_) {
-      _showMessage(
-        'No se ha podido reproducir la fuente. Comprueba que sea una URL directa compatible.',
+    audio.onError.listen((_) {
+      message(
+        'No se puede reproducir esa fuente. Comprueba la URL de audio.',
       );
     });
-
-    final current = _currentTrack;
-    if (current != null) {
-      _audio.src = current.audioUrl;
-    }
   }
 
   @override
   void dispose() {
-    _audio.pause();
-    _audio.removeAttribute('src');
-    _searchController.dispose();
+    audio.pause();
+    audio.removeAttribute('src');
+    catalogSearchController.dispose();
     super.dispose();
   }
 
-  WebTrack? get _currentTrack {
-    for (final track in _tracks) {
-      if (track.id == _currentId) {
+  LibraryTrack? get currentTrack {
+    for (final track in library) {
+      if (track.id == currentId) {
         return track;
       }
     }
+
     return null;
   }
 
-  List<WebTrack> _readLibrary() {
+  List<LibraryTrack> loadLibrary() {
     try {
-      final raw = html.window.localStorage[_storageKey];
+      final raw = html.window.localStorage[libraryKey];
+
       if (raw == null || raw.isEmpty) {
         return [];
       }
 
       final decoded = jsonDecode(raw);
+
       if (decoded is! List) {
         return [];
       }
 
       return decoded
           .whereType<Map>()
-          .map((item) => WebTrack.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => LibraryTrack.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
           .where((track) => track.audioUrl.isNotEmpty)
           .toList();
     } catch (_) {
@@ -168,13 +316,13 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
     }
   }
 
-  void _saveLibrary() {
-    html.window.localStorage[_storageKey] = jsonEncode(
-      _tracks.map((track) => track.toJson()).toList(),
+  void saveLibrary() {
+    html.window.localStorage[libraryKey] = jsonEncode(
+      library.map((track) => track.toJson()).toList(),
     );
   }
 
-  void _showMessage(String text) {
+  void message(String text) {
     if (!mounted) {
       return;
     }
@@ -189,78 +337,263 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
       );
   }
 
-  Future<void> _playTrack(WebTrack track) async {
-    final changedTrack = _currentId != track.id;
+  Future<Map<String, dynamic>> musicBrainzRequest(
+    String endpoint,
+    Map<String, String> parameters,
+  ) async {
+    final elapsed = DateTime.now().difference(lastMusicBrainzRequest);
+    const minimumWait = Duration(milliseconds: 1100);
+
+    if (elapsed < minimumWait) {
+      await Future<void>.delayed(minimumWait - elapsed);
+    }
+
+    lastMusicBrainzRequest = DateTime.now();
+
+    final uri = Uri.https(
+      'musicbrainz.org',
+      '/ws/2/$endpoint',
+      {
+        ...parameters,
+        'fmt': 'json',
+      },
+    );
+
+    final response = await html.HttpRequest.getString(uri.toString());
+    final decoded = jsonDecode(response);
+
+    if (decoded is! Map) {
+      throw const FormatException('Respuesta inválida');
+    }
+
+    return Map<String, dynamic>.from(decoded);
+  }
+
+  Future<void> searchCatalog() async {
+    final query = catalogSearchController.text.trim();
+
+    if (query.length < 2) {
+      message('Escribe al menos dos letras para buscar.');
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
 
     setState(() {
-      _currentId = track.id;
-      _progress = 0;
+      catalogLoading = true;
+      catalogError = null;
+      openedArtist = null;
+      artistAlbums = [];
+      artists = [];
+      albums = [];
     });
 
-    html.window.localStorage[_currentKey] = track.id;
+    try {
+      final artistResult = await musicBrainzRequest(
+        'artist',
+        {
+          'query': query,
+          'limit': '8',
+        },
+      );
 
-    if (changedTrack) {
-      _audio.src = track.audioUrl;
-      _audio.load();
+      final albumResult = await musicBrainzRequest(
+        'release-group',
+        {
+          'query': query,
+          'limit': '18',
+          'type': 'album|ep|single',
+        },
+      );
+
+      final searchedArtists = <CatalogArtist>[];
+      final searchedAlbums = <CatalogAlbum>[];
+
+      final rawArtists = artistResult['artists'];
+
+      if (rawArtists is List) {
+        for (final item in rawArtists) {
+          if (item is Map) {
+            final artist = CatalogArtist.fromJson(
+              Map<String, dynamic>.from(item),
+            );
+
+            if (artist.id.isNotEmpty) {
+              searchedArtists.add(artist);
+            }
+          }
+        }
+      }
+
+      final rawAlbums = albumResult['release-groups'];
+
+      if (rawAlbums is List) {
+        for (final item in rawAlbums) {
+          if (item is Map) {
+            final album = CatalogAlbum.fromJson(
+              Map<String, dynamic>.from(item),
+            );
+
+            if (album.id.isNotEmpty) {
+              searchedAlbums.add(album);
+            }
+          }
+        }
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        artists = searchedArtists;
+        albums = searchedAlbums;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        catalogError =
+            'No se ha podido consultar el catálogo. Espera unos segundos y prueba otra vez.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => catalogLoading = false);
+      }
+    }
+  }
+
+  Future<void> openArtist(CatalogArtist artist) async {
+    setState(() {
+      openedArtist = artist;
+      artistAlbums = [];
+      artistLoading = true;
+      catalogError = null;
+    });
+
+    try {
+      final result = await musicBrainzRequest(
+        'release-group',
+        {
+          'artist': artist.id,
+          'type': 'album|ep',
+          'limit': '24',
+        },
+      );
+
+      final fetchedAlbums = <CatalogAlbum>[];
+      final rawAlbums = result['release-groups'];
+
+      if (rawAlbums is List) {
+        for (final item in rawAlbums) {
+          if (item is Map) {
+            final album = CatalogAlbum.fromJson(
+              Map<String, dynamic>.from(item),
+            );
+
+            if (album.id.isNotEmpty) {
+              fetchedAlbums.add(album);
+            }
+          }
+        }
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => artistAlbums = fetchedAlbums);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        catalogError =
+            'No se han podido cargar los álbumes de este artista.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => artistLoading = false);
+      }
+    }
+  }
+
+  Future<void> playTrack(LibraryTrack track) async {
+    final isNewTrack = currentId != track.id;
+
+    setState(() {
+      currentId = track.id;
+      progress = 0;
+    });
+
+    html.window.localStorage[currentKey] = track.id;
+
+    if (isNewTrack) {
+      audio.src = track.audioUrl;
+      audio.load();
     }
 
     try {
-      await _audio.play();
+      await audio.play();
     } catch (_) {
-      _showMessage(
-        'El navegador ha bloqueado o no admite ese audio. Prueba una URL directa HTTPS.',
+      message(
+        'El navegador ha bloqueado o no admite esa fuente de audio.',
       );
     }
   }
 
-  Future<void> _togglePlayback() async {
-    final current = _currentTrack;
-    if (current == null) {
-      _showMessage('Añade una fuente desde Biblioteca.');
+  Future<void> togglePlayback() async {
+    final track = currentTrack;
+
+    if (track == null) {
+      message('Añade una fuente de audio a tu biblioteca.');
       return;
     }
 
-    if (_audio.paused) {
-      await _playTrack(current);
-      return;
+    if (audio.paused) {
+      await playTrack(track);
+    } else {
+      audio.pause();
     }
-
-    _audio.pause();
   }
 
-  void _nextTrack() {
-    if (_tracks.isEmpty) {
+  void nextTrack() {
+    if (library.isEmpty) {
       return;
     }
 
-    var index = _tracks.indexWhere((track) => track.id == _currentId);
+    var index = library.indexWhere((track) => track.id == currentId);
+
     if (index < 0) {
       index = 0;
-    } else {
-      index = (index + 1) % _tracks.length;
     }
 
-    _playTrack(_tracks[index]);
+    index = (index + 1) % library.length;
+    playTrack(library[index]);
   }
 
-  void _previousTrack() {
-    if (_tracks.isEmpty) {
+  void previousTrack() {
+    if (library.isEmpty) {
       return;
     }
 
-    var index = _tracks.indexWhere((track) => track.id == _currentId);
+    var index = library.indexWhere((track) => track.id == currentId);
+
     if (index <= 0) {
-      index = _tracks.length - 1;
+      index = library.length - 1;
     } else {
       index -= 1;
     }
 
-    _playTrack(_tracks[index]);
+    playTrack(library[index]);
   }
 
-  void _toggleFavorite(WebTrack track) {
+  void favoriteTrack(LibraryTrack track) {
     setState(() {
-      _tracks = _tracks
+      library = library
           .map(
             (item) => item.id == track.id
                 ? item.copyWith(favorite: !item.favorite)
@@ -269,78 +602,85 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
           .toList();
     });
 
-    _saveLibrary();
+    saveLibrary();
   }
 
-  void _deleteTrack(WebTrack track) {
+  void deleteTrack(LibraryTrack track) {
     setState(() {
-      _tracks.removeWhere((item) => item.id == track.id);
+      library.removeWhere((item) => item.id == track.id);
     });
 
-    if (_currentId == track.id) {
-      _audio.pause();
-      _audio.removeAttribute('src');
-      _audio.load();
-      _currentId = null;
-      _isPlaying = false;
-      html.window.localStorage.remove(_currentKey);
+    if (currentId == track.id) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+
+      currentId = null;
+      playing = false;
+
+      html.window.localStorage.remove(currentKey);
     }
 
-    _saveLibrary();
-    _showMessage('Fuente eliminada.');
+    saveLibrary();
+    message('Fuente eliminada.');
   }
 
-  Future<void> _openAddTrackDialog() async {
-    final title = TextEditingController();
-    final artist = TextEditingController();
-    final album = TextEditingController();
-    final cover = TextEditingController();
-    final audio = TextEditingController();
+  Future<void> addTrackDialog({
+    String title = '',
+    String artist = '',
+    String album = '',
+    String coverUrl = '',
+  }) async {
+    final titleController = TextEditingController(text: title);
+    final artistController = TextEditingController(text: artist);
+    final albumController = TextEditingController(text: album);
+    final coverController = TextEditingController(text: coverUrl);
+    final audioController = TextEditingController();
 
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Añadir fuente'),
+          title: const Text('Añadir a mi biblioteca'),
           content: SizedBox(
-            width: 430,
+            width: 460,
             child: SingleChildScrollView(
               child: Column(
                 children: [
                   TextField(
-                    controller: title,
+                    controller: titleController,
                     decoration: const InputDecoration(
-                      labelText: 'Título o emisora',
+                      labelText: 'Tema',
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                    controller: artist,
+                    controller: artistController,
                     decoration: const InputDecoration(
-                      labelText: 'Artista o autor',
+                      labelText: 'Artista',
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                    controller: album,
+                    controller: albumController,
                     decoration: const InputDecoration(
-                      labelText: 'Álbum o colección',
+                      labelText: 'Álbum',
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                    controller: cover,
+                    controller: coverController,
                     keyboardType: TextInputType.url,
                     decoration: const InputDecoration(
-                      labelText: 'URL de carátula HTTPS (opcional)',
+                      labelText: 'Carátula (opcional)',
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                    controller: audio,
+                    controller: audioController,
                     keyboardType: TextInputType.url,
                     decoration: const InputDecoration(
-                      labelText: 'URL directa de audio HTTPS',
+                      labelText: 'URL de audio autorizada',
                     ),
                   ),
                 ],
@@ -354,39 +694,37 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
             ),
             FilledButton(
               onPressed: () {
-                final audioUrl = audio.text.trim();
+                final audioUrl = audioController.text.trim();
+                final uri = Uri.tryParse(audioUrl);
 
-                try {
-                  final uri = Uri.parse(audioUrl);
-                  if (!uri.hasScheme ||
-                      (uri.scheme != 'https' && uri.scheme != 'http')) {
-                    throw const FormatException();
-                  }
-                } catch (_) {
-                  _showMessage('Introduce una URL válida que empiece por https://');
+                if (uri == null ||
+                    !uri.hasScheme ||
+                    (uri.scheme != 'https' && uri.scheme != 'http')) {
+                  message(
+                    'Introduce una URL válida que empiece por https://',
+                  );
                   return;
                 }
 
-                final track = WebTrack(
+                final track = LibraryTrack(
                   id: DateTime.now().microsecondsSinceEpoch.toString(),
-                  title: title.text.trim().isEmpty
-                      ? Uri.parse(audioUrl).host
-                      : title.text.trim(),
-                  artist: artist.text.trim(),
-                  album: album.text.trim(),
-                  coverUrl: cover.text.trim(),
+                  title: titleController.text.trim().isEmpty
+                      ? uri.host
+                      : titleController.text.trim(),
+                  artist: artistController.text.trim(),
+                  album: albumController.text.trim(),
+                  coverUrl: coverController.text.trim(),
                   audioUrl: audioUrl,
                   favorite: false,
                 );
 
-                setState(() {
-                  _tracks = [track, ..._tracks];
-                });
+                setState(() => library = [track, ...library]);
+                saveLibrary();
 
-                _saveLibrary();
                 Navigator.pop(dialogContext);
-                _playTrack(track);
-                _showMessage('Fuente guardada en este navegador.');
+                playTrack(track);
+
+                message('Añadido a tu biblioteca.');
               },
               child: const Text('GUARDAR Y REPRODUCIR'),
             ),
@@ -395,31 +733,33 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
       },
     );
 
-    title.dispose();
-    artist.dispose();
-    album.dispose();
-    cover.dispose();
-    audio.dispose();
+    titleController.dispose();
+    artistController.dispose();
+    albumController.dispose();
+    coverController.dispose();
+    audioController.dispose();
   }
 
-  Widget _cover(WebTrack? track, {double size = 56}) {
-    final hasCustomCover =
-        track != null && track.coverUrl.trim().isNotEmpty;
+  Widget artwork(
+    String url, {
+    double size = 56,
+  }) {
+    final imageUrl = url.isEmpty ? 'pt34-music-logo.png' : url;
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(size * 0.22),
+      borderRadius: BorderRadius.circular(size * 0.18),
       child: SizedBox(
         width: size,
         height: size,
         child: Image.network(
-          hasCustomCover ? track!.coverUrl : 'pt34-music-logo.png',
+          imageUrl,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) {
             return Container(
-              color: const Color(0xFF2B1E40),
+              color: const Color(0xFF2D2042),
               child: const Icon(
                 Icons.music_note_rounded,
-                color: Color(0xFFE2C9FF),
+                color: Color(0xFFE7C8FF),
               ),
             );
           },
@@ -428,15 +768,20 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
     );
   }
 
-  Widget _trackTile(WebTrack track) {
+  Widget libraryTile(LibraryTrack track) {
+    final subTitle = [
+      if (track.artist.isNotEmpty) track.artist,
+      if (track.album.isNotEmpty) track.album,
+    ].join(' · ');
+
     return Card(
       margin: const EdgeInsets.only(bottom: 9),
       child: ListTile(
         contentPadding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
         leading: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => _playTrack(track),
-          child: _cover(track),
+          onTap: () => playTrack(track),
+          borderRadius: BorderRadius.circular(13),
+          child: artwork(track.coverUrl, size: 56),
         ),
         title: Text(
           track.title,
@@ -444,35 +789,26 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          [
-            if (track.artist.isNotEmpty) track.artist,
-            if (track.album.isNotEmpty) track.album,
-          ].join(' · ').isEmpty
-              ? 'Fuente autorizada'
-              : [
-                  if (track.artist.isNotEmpty) track.artist,
-                  if (track.album.isNotEmpty) track.album,
-                ].join(' · '),
+          subTitle.isEmpty ? 'Fuente guardada' : subTitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        onTap: () => _playTrack(track),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+        onTap: () => playTrack(track),
+        trailing: Wrap(
           children: [
             IconButton(
-              tooltip: 'Favorito',
-              onPressed: () => _toggleFavorite(track),
+              onPressed: () => favoriteTrack(track),
               icon: Icon(
                 track.favorite
                     ? Icons.favorite_rounded
                     : Icons.favorite_border_rounded,
-                color: track.favorite ? const Color(0xFFE0B8FF) : null,
+                color: track.favorite
+                    ? const Color(0xFFE7C8FF)
+                    : null,
               ),
             ),
             IconButton(
-              tooltip: 'Eliminar',
-              onPressed: () => _deleteTrack(track),
+              onPressed: () => deleteTrack(track),
               icon: const Icon(Icons.delete_outline_rounded),
             ),
           ],
@@ -481,20 +817,166 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
     );
   }
 
-  Widget _homePage() {
-    final favorites = _tracks.where((track) => track.favorite).length;
-    final artists = _tracks
-        .where((track) => track.artist.trim().isNotEmpty)
-        .map((track) => track.artist.trim().toLowerCase())
-        .toSet()
-        .length;
+  Widget artistTile(CatalogArtist artist) {
+    final subtitle = [
+      if (artist.type.isNotEmpty) artist.type,
+      if (artist.country.isNotEmpty) artist.country,
+    ].join(' · ');
+
+    final letter = artist.name.isEmpty
+        ? '?'
+        : artist.name.substring(0, 1).toUpperCase();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 9),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFF2D2042),
+          child: Text(
+            letter,
+            style: const TextStyle(
+              color: Color(0xFFE7C8FF),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        title: Text(artist.name),
+        subtitle: Text(
+          subtitle.isEmpty ? 'Artista del catálogo' : subtitle,
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => openArtist(artist),
+      ),
+    );
+  }
+
+  Widget albumTile(CatalogAlbum album) {
+    final subtitle = [
+      if (album.artist.isNotEmpty) album.artist,
+      if (album.year.isNotEmpty) album.year,
+    ].join(' · ');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 9),
+      child: ListTile(
+        contentPadding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+        leading: artwork(album.coverUrl, size: 56),
+        title: Text(
+          album.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(Icons.album_rounded),
+        onTap: () => openAlbum(album),
+      ),
+    );
+  }
+
+  void openAlbum(CatalogAlbum album) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFF1B1721),
+      builder: (sheetContext) {
+        final subtitle = [
+          if (album.artist.isNotEmpty) album.artist,
+          if (album.year.isNotEmpty) album.year,
+          if (album.type.isNotEmpty) album.type,
+        ].join(' · ');
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                artwork(album.coverUrl, size: 180),
+                const SizedBox(height: 16),
+                Text(
+                  album.title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+
+                    addTrackDialog(
+                      title: album.title,
+                      artist: album.artist,
+                      album: album.title,
+                      coverUrl: album.coverUrl,
+                    );
+                  },
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('AÑADIR AUDIO AUTORIZADO'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget statCard(
+    String label,
+    String value,
+    IconData icon,
+  ) {
+    return SizedBox(
+      width: 112,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: const Color(0xFFE7C8FF)),
+              const SizedBox(height: 12),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget homePage() {
+    final favoriteCount =
+        library.where((track) => track.favorite).length;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
       children: [
         Row(
           children: [
-            _cover(null, size: 54),
+            artwork('pt34-music-logo.png', size: 54),
             const SizedBox(width: 12),
             const Expanded(
               child: Column(
@@ -504,12 +986,12 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
                     'PT34-MUSIC',
                     style: TextStyle(
                       fontSize: 22,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                   SizedBox(height: 3),
                   Text(
-                    'Spotube Web · Biblioteca personal',
+                    'Spotube Web · Catálogo y biblioteca',
                     style: TextStyle(color: Colors.white70),
                   ),
                 ],
@@ -523,7 +1005,10 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(28),
             gradient: const LinearGradient(
-              colors: [Color(0xFF9B5CFF), Color(0xFF4F2D90)],
+              colors: [
+                Color(0xFF9B5CFF),
+                Color(0xFF513092),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -532,111 +1017,109 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Tu música, tu biblioteca',
+                'Artistas y carátulas reales',
                 style: TextStyle(
-                  fontSize: 26,
+                  fontSize: 25,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 8),
               const Text(
-                'Añade fuentes de audio propias o autorizadas, con carátula, artista y álbum.',
+                'Busca artistas, álbumes y lanzamientos reales dentro del catálogo musical.',
                 style: TextStyle(height: 1.35),
               ),
               const SizedBox(height: 18),
               FilledButton.icon(
-                onPressed: _openAddTrackDialog,
+                onPressed: () => setState(() => tab = 1),
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF512A98),
+                  foregroundColor: const Color(0xFF542A9C),
                 ),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('AÑADIR FUENTE'),
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('ABRIR CATÁLOGO'),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 22),
         Wrap(
           spacing: 10,
           runSpacing: 10,
           children: [
-            _statCard('Fuentes', _tracks.length.toString(), Icons.queue_music_rounded),
-            _statCard('Favoritos', favorites.toString(), Icons.favorite_rounded),
-            _statCard('Artistas', artists.toString(), Icons.person_rounded),
+            statCard(
+              'Biblioteca',
+              library.length.toString(),
+              Icons.library_music_rounded,
+            ),
+            statCard(
+              'Favoritos',
+              favoriteCount.toString(),
+              Icons.favorite_rounded,
+            ),
+            statCard(
+              'Catálogo',
+              'Real',
+              Icons.album_rounded,
+            ),
           ],
         ),
-        const SizedBox(height: 26),
+        const SizedBox(height: 28),
         const Text(
           'Añadido recientemente',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+          ),
         ),
         const SizedBox(height: 10),
-        if (_tracks.isEmpty)
+        if (library.isEmpty)
           const Card(
             child: Padding(
-              padding: EdgeInsets.all(22),
+              padding: EdgeInsets.all(20),
               child: Text(
-                'Aún no hay música en la biblioteca. Añade una fuente autorizada para comenzar.',
+                'Todavía no hay fuentes en Biblioteca. Entra en Catálogo para buscar artistas y discos.',
                 style: TextStyle(color: Colors.white70),
               ),
             ),
           )
         else
-          ..._tracks.take(5).map(_trackTile),
+          ...library.take(5).map(libraryTile),
       ],
     );
   }
 
-  Widget _statCard(String label, String value, IconData icon) {
-    return SizedBox(
-      width: 112,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: const Color(0xFFD9BFFF)),
-              const SizedBox(height: 12),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              Text(label, style: const TextStyle(color: Colors.white70)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _searchPage() {
-    final query = _searchController.text.trim().toLowerCase();
-
-    final results = _tracks.where((track) {
-      return track.title.toLowerCase().contains(query) ||
-          track.artist.toLowerCase().contains(query) ||
-          track.album.toLowerCase().contains(query);
-    }).toList();
+  Widget catalogPage() {
+    if (openedArtist != null) {
+      return artistPage();
+    }
 
     return ListView(
       padding: const EdgeInsets.all(18),
       children: [
         const Text(
-          'Buscar',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+          'Catálogo',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Artistas, álbumes y carátulas reales.',
+          style: TextStyle(color: Colors.white70),
         ),
         const SizedBox(height: 16),
         TextField(
-          controller: _searchController,
-          onChanged: (_) => setState(() {}),
+          controller: catalogSearchController,
+          textInputAction: TextInputAction.search,
+          onSubmitted: (_) => searchCatalog(),
           decoration: InputDecoration(
-            hintText: 'Temas, artistas o álbumes',
+            hintText: 'Busca artista, álbum o canción',
             prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: IconButton(
+              onPressed: searchCatalog,
+              icon: const Icon(Icons.arrow_forward_rounded),
+            ),
             filled: true,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
@@ -645,100 +1128,260 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
           ),
         ),
         const SizedBox(height: 18),
-        if (_tracks.isEmpty)
-          const Text(
-            'Añade fuentes en Biblioteca para buscarlas aquí.',
-            style: TextStyle(color: Colors.white70),
+        if (catalogLoading)
+          const Padding(
+            padding: EdgeInsets.all(28),
+            child: Center(child: CircularProgressIndicator()),
           )
-        else if (results.isEmpty)
-          const Text(
-            'No hay coincidencias.',
-            style: TextStyle(color: Colors.white70),
+        else if (catalogError != null)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Text(catalogError!),
+            ),
           )
-        else
-          ...results.map(_trackTile),
+        else if (artists.isEmpty && albums.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Escribe un artista, álbum o canción para consultar el catálogo.',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          )
+        else ...[
+          if (artists.isNotEmpty) ...[
+            const Text(
+              'Artistas',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 9),
+            ...artists.map(artistTile),
+            const SizedBox(height: 20),
+          ],
+          if (albums.isNotEmpty) ...[
+            const Text(
+              'Álbumes y lanzamientos',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 9),
+            ...albums.map(albumTile),
+          ],
+        ],
       ],
     );
   }
 
-  Widget _libraryPage() {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openAddTrackDialog,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('FUENTE'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          const Text(
-            'Biblioteca',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Las fuentes se guardan solo en este navegador.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          const SizedBox(height: 18),
-          if (_tracks.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(26),
-                child: Column(
-                  children: [
-                    Icon(Icons.library_music_outlined, size: 48),
-                    SizedBox(height: 12),
-                    Text(
-                      'Tu biblioteca está vacía',
-                      style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
-                    ),
-                    SizedBox(height: 7),
-                    Text(
-                      'Pulsa FUENTE para añadir música propia o autorizada.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+  Widget artistPage() {
+    final artist = openedArtist!;
+
+    final letter = artist.name.isEmpty
+        ? '?'
+        : artist.name.substring(0, 1).toUpperCase();
+
+    final details = [
+      if (artist.type.isNotEmpty) artist.type,
+      if (artist.country.isNotEmpty) artist.country,
+    ].join(' · ');
+
+    return ListView(
+      padding: const EdgeInsets.all(18),
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  openedArtist = null;
+                  artistAlbums = [];
+                  catalogError = null;
+                });
+              },
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              'Artista',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
               ),
-            )
-          else
-            ..._tracks.map(_trackTile),
-        ],
-      ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 34,
+                  backgroundColor: const Color(0xFF2D2042),
+                  child: Text(
+                    letter,
+                    style: const TextStyle(
+                      color: Color(0xFFE7C8FF),
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        artist.name,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        details.isEmpty ? 'Catálogo musical' : details,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 22),
+        const Text(
+          'Álbumes',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (artistLoading)
+          const Padding(
+            padding: EdgeInsets.all(28),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (catalogError != null)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Text(catalogError!),
+            ),
+          )
+        else if (artistAlbums.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(18),
+              child: Text('No hay álbumes disponibles para este artista.'),
+            ),
+          )
+        else
+          ...artistAlbums.map(albumTile),
+      ],
     );
   }
 
-  Widget _profilePage() {
+  Widget libraryPage() {
+    return ListView(
+      padding: const EdgeInsets.all(18),
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Biblioteca',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: addTrackDialog,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('FUENTE'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Fuentes personales guardadas en este navegador.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 18),
+        if (library.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(26),
+              child: Column(
+                children: [
+                  Icon(Icons.library_music_outlined, size: 48),
+                  SizedBox(height: 12),
+                  Text(
+                    'Tu biblioteca está vacía',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  SizedBox(height: 7),
+                  Text(
+                    'Busca un artista o álbum en Catálogo y añade una fuente de audio autorizada.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ...library.map(libraryTile),
+      ],
+    );
+  }
+
+  Widget profilePage() {
+    final favorites =
+        library.where((track) => track.favorite).length;
+
     return ListView(
       padding: const EdgeInsets.all(18),
       children: [
         const Text(
           'Perfil',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+          ),
         ),
         const SizedBox(height: 18),
         Card(
           child: ListTile(
-            leading: _cover(null),
+            leading: artwork('pt34-music-logo.png', size: 50),
             title: const Text('PT34-MUSIC'),
-            subtitle: const Text('Port web basado en Spotube'),
+            subtitle: Text(
+              '${library.length} fuentes · $favorites favoritos',
+            ),
           ),
         ),
         const SizedBox(height: 10),
-        Card(
+        const Card(
           child: ListTile(
-            leading: const Icon(Icons.info_outline_rounded),
-            title: const Text('Modo web'),
-            subtitle: const Text(
-              'Audio mediante URLs directas compatibles con el navegador.',
+            leading: Icon(Icons.public_rounded),
+            title: Text('Catálogo real'),
+            subtitle: Text(
+              'Artistas, discos y carátulas reales.',
             ),
-            onTap: () {
-              _showMessage(
-                'Las fuentes nativas y el servidor local de Spotube no existen en GitHub Pages.',
-              );
-            },
           ),
         ),
         const SizedBox(height: 10),
@@ -746,48 +1389,30 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
           child: ListTile(
             leading: const Icon(Icons.delete_sweep_outlined),
             title: const Text('Borrar biblioteca local'),
-            subtitle: const Text('Elimina las fuentes guardadas de este navegador.'),
-            onTap: () async {
-              final accepted = await showDialog<bool>(
-                context: context,
-                builder: (context) {
-                  return AlertDialog(
-                    title: const Text('Borrar biblioteca'),
-                    content: const Text(
-                      'Esta acción elimina las fuentes guardadas en este navegador.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancelar'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Borrar'),
-                      ),
-                    ],
-                  );
-                },
-              );
-
-              if (accepted != true) {
+            subtitle: const Text(
+              'Elimina las fuentes guardadas en este navegador.',
+            ),
+            onTap: () {
+              if (library.isEmpty) {
+                message('No hay datos que borrar.');
                 return;
               }
 
-              _audio.pause();
-              _audio.removeAttribute('src');
-              _audio.load();
-
               setState(() {
-                _tracks = [];
-                _currentId = null;
-                _isPlaying = false;
-                _progress = 0;
+                library = [];
+                currentId = null;
+                playing = false;
+                progress = 0;
               });
 
-              html.window.localStorage.remove(_storageKey);
-              html.window.localStorage.remove(_currentKey);
-              _showMessage('Biblioteca eliminada.');
+              audio.pause();
+              audio.removeAttribute('src');
+              audio.load();
+
+              html.window.localStorage.remove(libraryKey);
+              html.window.localStorage.remove(currentKey);
+
+              message('Biblioteca eliminada.');
             },
           ),
         ),
@@ -795,79 +1420,84 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
     );
   }
 
-  Widget _miniPlayer() {
-    final track = _currentTrack;
+  Widget miniPlayer() {
+    final track = currentTrack;
+
     if (track == null) {
       return const SizedBox.shrink();
     }
 
     return Material(
-      color: const Color(0xFF241D2B),
-      child: InkWell(
-        onTap: () => _tabIndex = 2,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 9, 8, 8),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  _cover(track, size: 42),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
+      color: const Color(0xFF251E2C),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 9, 8, 7),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                artwork(track.coverUrl, size: 42),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        track.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
                         ),
-                        Text(
-                          track.artist.isEmpty ? 'Reproductor web' : track.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
+                      ),
+                      Text(
+                        track.artist.isEmpty
+                            ? 'Reproductor web'
+                            : track.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    onPressed: _previousTrack,
-                    icon: const Icon(Icons.skip_previous_rounded),
+                ),
+                IconButton(
+                  onPressed: previousTrack,
+                  icon: const Icon(Icons.skip_previous_rounded),
+                ),
+                IconButton(
+                  onPressed: togglePlayback,
+                  icon: Icon(
+                    playing
+                        ? Icons.pause_circle_filled_rounded
+                        : Icons.play_circle_fill_rounded,
+                    size: 32,
                   ),
-                  IconButton(
-                    onPressed: _togglePlayback,
-                    icon: Icon(
-                      _isPlaying
-                          ? Icons.pause_circle_filled_rounded
-                          : Icons.play_circle_fill_rounded,
-                      size: 32,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _nextTrack,
-                    icon: const Icon(Icons.skip_next_rounded),
-                  ),
-                ],
-              ),
-              Slider(
-                value: _progress,
-                onChanged: (value) {
-                  final duration = _audio.duration;
-                  if (!duration.isFinite || duration <= 0) {
-                    return;
-                  }
+                ),
+                IconButton(
+                  onPressed: nextTrack,
+                  icon: const Icon(Icons.skip_next_rounded),
+                ),
+              ],
+            ),
+            Slider(
+              value: progress,
+              onChanged: (value) {
+                final duration = audio.duration;
 
-                  _audio.currentTime = duration * value;
-                  setState(() => _progress = value);
-                },
-              ),
-            ],
-          ),
+                if (!duration.isFinite || duration <= 0) {
+                  return;
+                }
+
+                audio.currentTime = duration * value;
+
+                setState(() => progress = value);
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -876,70 +1506,56 @@ class _Pt34MusicWebAppState extends State<Pt34MusicWebApp> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      _homePage(),
-      _searchPage(),
-      _libraryPage(),
-      _profilePage(),
+      homePage(),
+      catalogPage(),
+      libraryPage(),
+      profilePage(),
     ];
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'PT34-MUSIC',
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF9B5CFF),
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: const Color(0xFF100E14),
-        cardTheme: CardThemeData(
-          color: const Color(0xFF1C1822),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(19),
-          ),
-        ),
+    return Scaffold(
+      body: SafeArea(
+        child: pages[tab],
       ),
-      home: Builder(
-        builder: (context) {
-          return Scaffold(
-            body: SafeArea(child: pages[_tabIndex]),
-            bottomNavigationBar: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _miniPlayer(),
-                NavigationBar(
-                  selectedIndex: _tabIndex,
-                  onDestinationSelected: (index) {
-                    setState(() => _tabIndex = index);
-                  },
-                  destinations: const [
-                    NavigationDestination(
-                      icon: Icon(Icons.home_outlined),
-                      selectedIcon: Icon(Icons.home_rounded),
-                      label: 'Inicio',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.search_rounded),
-                      label: 'Buscar',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.library_music_outlined),
-                      selectedIcon: Icon(Icons.library_music_rounded),
-                      label: 'Biblioteca',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.person_outline_rounded),
-                      selectedIcon: Icon(Icons.person_rounded),
-                      label: 'Perfil',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          miniPlayer(),
+          NavigationBar(
+            selectedIndex: tab,
+            onDestinationSelected: (index) {
+              setState(() {
+                tab = index;
+
+                if (index != 1) {
+                  openedArtist = null;
+                  artistAlbums = [];
+                  catalogError = null;
+                }
+              });
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Inicio',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.search_rounded),
+                label: 'Catálogo',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.library_music_outlined),
+                selectedIcon: Icon(Icons.library_music_rounded),
+                label: 'Biblioteca',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Perfil',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
