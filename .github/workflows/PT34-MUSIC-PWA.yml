@@ -17,9 +17,9 @@ concurrency:
 
 jobs:
   build:
-    name: Crear Inicio PT34-MUSIC
+    name: Crear PWA PT34-MUSIC
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 3
 
     steps:
       - name: Descargar proyecto
@@ -28,578 +28,683 @@ jobs:
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Instalar Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.35.2"
-          channel: stable
-          cache: true
-
-      - name: Desactivar analítica
-        run: flutter config --no-analytics
-
-      - name: Crear Inicio PT34-MUSIC
+      - name: Crear PWA estática
         run: |
-          cat > lib/main_pwa.dart <<'DART'
-          import 'package:flutter/material.dart';
+          rm -rf site
+          mkdir -p site
 
-          void main() {
-            runApp(const Pt34MusicApp());
-          }
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="es">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta name="theme-color" content="#9b5cff">
+            <meta name="description" content="PT34-MUSIC · Biblioteca musical personal">
+            <link rel="manifest" href="./manifest.webmanifest">
+            <link rel="icon" href="./icon.svg" type="image/svg+xml">
+            <title>PT34-MUSIC</title>
 
-          class Pt34MusicApp extends StatelessWidget {
-            const Pt34MusicApp({super.key});
+            <style>
+              :root {
+                --bg: #111015;
+                --surface: #1b1821;
+                --surface-2: #25202c;
+                --purple: #9b5cff;
+                --purple-light: #d8c2ff;
+                --text: #f4eff8;
+                --muted: #b8b0c1;
+                --line: rgba(255,255,255,.09);
+              }
 
-            @override
-            Widget build(BuildContext context) {
-              return MaterialApp(
-                debugShowCheckedModeBanner: false,
-                title: 'PT34-MUSIC',
-                theme: ThemeData(
-                  useMaterial3: true,
-                  brightness: Brightness.dark,
-                  colorScheme: ColorScheme.fromSeed(
-                    seedColor: const Color(0xFF9B5CFF),
-                    brightness: Brightness.dark,
-                  ),
-                ),
-                home: const MusicShell(),
-              );
-            }
-          }
+              * { box-sizing: border-box; }
 
-          class MusicShell extends StatefulWidget {
-            const MusicShell({super.key});
+              body {
+                margin: 0;
+                min-height: 100vh;
+                background: var(--bg);
+                color: var(--text);
+                font-family: Arial, Helvetica, sans-serif;
+              }
 
-            @override
-            State<MusicShell> createState() => _MusicShellState();
-          }
+              button, input {
+                font: inherit;
+              }
 
-          class _MusicShellState extends State<MusicShell> {
-            static const background = Color(0xFF111015);
-            static const surface = Color(0xFF1A1720);
-            static const purple = Color(0xFF9B5CFF);
+              button {
+                border: 0;
+                cursor: pointer;
+              }
 
-            int tab = 0;
-            bool playing = false;
+              .app {
+                width: min(760px, 100%);
+                min-height: 100vh;
+                margin: 0 auto;
+                padding-bottom: 145px;
+              }
 
-            void message(String text) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(text)),
-              );
-            }
+              header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 20px;
+              }
 
-            void playDemo() {
-              setState(() => playing = true);
-              message('Añade tus fuentes autorizadas desde Biblioteca.');
-            }
+              .logo {
+                width: 48px;
+                height: 48px;
+                display: grid;
+                place-items: center;
+                border-radius: 16px;
+                background: var(--purple);
+                color: white;
+                font-size: 27px;
+                font-weight: 900;
+              }
 
-            @override
-            Widget build(BuildContext context) {
-              final pages = [
-                homePage(),
-                searchPage(),
-                libraryPage(),
-                profilePage(),
-              ];
+              .brand {
+                flex: 1;
+              }
 
-              return Scaffold(
-                backgroundColor: background,
-                body: SafeArea(
-                  child: IndexedStack(
-                    index: tab,
-                    children: pages,
-                  ),
-                ),
-                bottomNavigationBar: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (playing)
-                      Container(
-                        color: const Color(0xFF25202C),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: purple,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.music_note_rounded),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Tu reproductor',
-                                    style: TextStyle(fontWeight: FontWeight.w700),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    'Conecta una fuente para reproducir',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => setState(() => playing = false),
-                              icon: const Icon(Icons.pause_rounded),
-                            ),
-                          ],
-                        ),
-                      ),
-                    NavigationBar(
-                      selectedIndex: tab,
-                      onDestinationSelected: (value) {
-                        setState(() => tab = value);
-                      },
-                      destinations: const [
-                        NavigationDestination(
-                          icon: Icon(Icons.home_outlined),
-                          selectedIcon: Icon(Icons.home_rounded),
-                          label: 'Inicio',
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.search_rounded),
-                          label: 'Buscar',
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.library_music_outlined),
-                          selectedIcon: Icon(Icons.library_music_rounded),
-                          label: 'Biblioteca',
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.person_outline_rounded),
-                          selectedIcon: Icon(Icons.person_rounded),
-                          label: 'Perfil',
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            }
+              .brand strong {
+                display: block;
+                font-size: 20px;
+                letter-spacing: .5px;
+              }
 
-            Widget homePage() {
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: purple,
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: const Icon(Icons.music_note_rounded, size: 30),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'PT34-MUSIC',
-                              style: TextStyle(
-                                fontSize: 21,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Tu música, tu biblioteca',
-                              style: TextStyle(color: Colors.white60),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => setState(() => tab = 3),
-                        icon: const Icon(Icons.settings_outlined),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  TextField(
-                    readOnly: true,
-                    onTap: () => setState(() => tab = 1),
-                    decoration: InputDecoration(
-                      hintText: 'Busca en tu biblioteca',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      filled: true,
-                      fillColor: surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Container(
-                    padding: const EdgeInsets.all(22),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(26),
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF9B5CFF),
-                          Color(0xFF5C35AE),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Todo listo',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'Crea tu biblioteca y reproduce tus enlaces autorizados.',
-                                style: TextStyle(height: 1.35),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        FilledButton(
-                          onPressed: playDemo,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF542A9C),
-                          ),
-                          child: const Icon(Icons.play_arrow_rounded),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  const Text(
-                    'Tus colecciones',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    height: 126,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        collectionCard(
-                          icon: Icons.favorite_rounded,
-                          title: 'Favoritos',
-                          subtitle: 'Tus temas guardados',
-                        ),
-                        collectionCard(
-                          icon: Icons.queue_music_rounded,
-                          title: 'Mi música',
-                          subtitle: 'Tu colección personal',
-                        ),
-                        collectionCard(
-                          icon: Icons.podcasts_rounded,
-                          title: 'Podcast',
-                          subtitle: 'Programas y episodios',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  const Text(
-                    'Empieza por aquí',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  setupTile(
-                    Icons.add_link_rounded,
-                    'Añade una fuente autorizada',
-                    'Enlaces de audio compatibles con el navegador.',
-                    () => setState(() => tab = 2),
-                  ),
-                  setupTile(
-                    Icons.favorite_border_rounded,
-                    'Crea tus favoritos',
-                    'Guarda tus artistas, podcasts y colecciones.',
-                    () => message('Los favoritos se activarán al añadir contenido.'),
-                  ),
-                ],
-              );
-            }
+              .brand span {
+                color: var(--muted);
+                font-size: 13px;
+              }
 
-            Widget collectionCard({
-              required IconData icon,
-              required String title,
-              required String subtitle,
-            }) {
-              return Container(
-                width: 170,
-                margin: const EdgeInsets.only(right: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: surface,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(icon, color: const Color(0xFFD8C2FF), size: 30),
-                    const Spacer(),
-                    Text(
-                      title,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
+              .install {
+                padding: 10px 13px;
+                border-radius: 14px;
+                background: var(--surface);
+                color: var(--purple-light);
+              }
 
-            Widget setupTile(
-              IconData icon,
-              String title,
-              String subtitle,
-              VoidCallback action,
-            ) {
-              return Card(
-                color: surface,
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  onTap: action,
-                  leading: CircleAvatar(
-                    backgroundColor: purple.withOpacity(.2),
-                    child: Icon(icon, color: const Color(0xFFD8C2FF)),
-                  ),
-                  title: Text(title),
-                  subtitle: Text(subtitle),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                ),
-              );
-            }
+              main {
+                padding: 0 20px 30px;
+              }
 
-            Widget searchPage() {
-              return Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Buscar',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    TextField(
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        hintText: 'Artistas, álbumes o listas',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        filled: true,
-                        fillColor: surface,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Explora tu contenido cuando añadas una fuente.',
-                      style: TextStyle(color: Colors.white60),
-                    ),
-                  ],
-                ),
-              );
-            }
+              .page {
+                display: none;
+              }
 
-            Widget libraryPage() {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(28),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 96,
-                        height: 96,
-                        decoration: BoxDecoration(
-                          color: purple.withOpacity(.18),
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        child: const Icon(
-                          Icons.library_music_rounded,
-                          color: Color(0xFFD8C2FF),
-                          size: 52,
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      const Text(
-                        'Tu biblioteca está vacía',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Añade enlaces propios o autorizados compatibles con el reproductor web.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white60, height: 1.4),
-                      ),
-                      const SizedBox(height: 22),
-                      FilledButton.icon(
-                        onPressed: () => message(
-                          'El módulo de fuentes se añade en el siguiente paso.',
-                        ),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('AÑADIR FUENTE'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
+              .page.active {
+                display: block;
+              }
 
-            Widget profilePage() {
-              return ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  const Text(
-                    'Perfil',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Card(
-                    color: surface,
-                    child: const ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: purple,
-                        child: Icon(Icons.person_rounded),
-                      ),
-                      title: Text('PT34-MUSIC'),
-                      subtitle: Text('Edición PWA'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    color: surface,
-                    child: ListTile(
-                      leading: const Icon(Icons.info_outline_rounded),
-                      title: const Text('Acerca de'),
-                      subtitle: const Text(
-                        'Biblioteca y reproductor web personal.',
-                      ),
-                      onTap: () => message('PT34-MUSIC PWA'),
-                    ),
-                  ),
-                ],
-              );
-            }
-          }
-          DART
+              .searchbox {
+                width: 100%;
+                border: 0;
+                outline: 0;
+                border-radius: 18px;
+                padding: 16px 18px;
+                background: var(--surface);
+                color: white;
+                font-size: 16px;
+              }
 
-      - name: Preparar manifest PWA
-        run: |
-          cat > web/manifest.json <<'JSON'
+              .hero {
+                margin-top: 20px;
+                padding: 24px;
+                border-radius: 28px;
+                background: linear-gradient(135deg, #9b5cff, #56319d);
+              }
+
+              .hero h1 {
+                margin: 0 0 10px;
+                font-size: 30px;
+              }
+
+              .hero p {
+                margin: 0;
+                max-width: 440px;
+                line-height: 1.45;
+              }
+
+              .primary {
+                margin-top: 20px;
+                padding: 13px 18px;
+                border-radius: 16px;
+                background: white;
+                color: #542a9c;
+                font-weight: 800;
+              }
+
+              h2 {
+                margin: 30px 0 14px;
+                font-size: 20px;
+              }
+
+              .row {
+                display: flex;
+                gap: 12px;
+                overflow-x: auto;
+                padding-bottom: 4px;
+              }
+
+              .card {
+                min-width: 165px;
+                min-height: 125px;
+                padding: 16px;
+                border-radius: 20px;
+                background: var(--surface);
+              }
+
+              .card-icon {
+                color: var(--purple-light);
+                font-size: 28px;
+              }
+
+              .card strong {
+                display: block;
+                margin-top: 24px;
+              }
+
+              .card span {
+                display: block;
+                margin-top: 5px;
+                color: var(--muted);
+                font-size: 12px;
+              }
+
+              .list {
+                display: grid;
+                gap: 10px;
+              }
+
+              .item {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                padding: 14px;
+                border-radius: 18px;
+                background: var(--surface);
+              }
+
+              .item-icon {
+                width: 42px;
+                height: 42px;
+                display: grid;
+                place-items: center;
+                border-radius: 13px;
+                background: rgba(155,92,255,.2);
+                color: var(--purple-light);
+                font-size: 20px;
+              }
+
+              .item-text {
+                flex: 1;
+              }
+
+              .item-text strong,
+              .item-text span {
+                display: block;
+              }
+
+              .item-text span {
+                margin-top: 4px;
+                color: var(--muted);
+                font-size: 13px;
+              }
+
+              .arrow {
+                color: var(--muted);
+                font-size: 22px;
+              }
+
+              .empty {
+                padding: 34px 20px;
+                text-align: center;
+                border-radius: 24px;
+                background: var(--surface);
+                color: var(--muted);
+                line-height: 1.5;
+              }
+
+              .empty strong {
+                display: block;
+                margin-bottom: 8px;
+                color: white;
+                font-size: 20px;
+              }
+
+              .source-form {
+                display: grid;
+                gap: 12px;
+                padding: 18px;
+                border-radius: 22px;
+                background: var(--surface);
+              }
+
+              .source-form input {
+                width: 100%;
+                padding: 14px;
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                outline: 0;
+                background: #121016;
+                color: white;
+              }
+
+              .source-form button {
+                padding: 14px;
+                border-radius: 14px;
+                background: var(--purple);
+                color: white;
+                font-weight: 800;
+              }
+
+              .player {
+                margin-top: 18px;
+                padding: 16px;
+                border-radius: 20px;
+                background: var(--surface-2);
+              }
+
+              .player strong,
+              .player span {
+                display: block;
+              }
+
+              .player span {
+                margin: 5px 0 12px;
+                color: var(--muted);
+                font-size: 13px;
+              }
+
+              audio {
+                width: 100%;
+              }
+
+              .mini {
+                position: fixed;
+                left: 50%;
+                bottom: 70px;
+                width: min(760px, 100%);
+                transform: translateX(-50%);
+                padding: 11px 18px;
+                background: #27212f;
+                border-top: 1px solid var(--line);
+              }
+
+              .mini strong,
+              .mini span {
+                display: block;
+              }
+
+              .mini span {
+                margin-top: 3px;
+                color: var(--muted);
+                font-size: 12px;
+              }
+
+              nav {
+                position: fixed;
+                left: 50%;
+                bottom: 0;
+                width: min(760px, 100%);
+                transform: translateX(-50%);
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                padding: 9px 8px max(9px, env(safe-area-inset-bottom));
+                background: #17141c;
+                border-top: 1px solid var(--line);
+              }
+
+              .tab {
+                padding: 9px 4px;
+                background: transparent;
+                color: var(--muted);
+                font-size: 12px;
+              }
+
+              .tab.active {
+                color: var(--purple-light);
+                font-weight: 800;
+              }
+
+              .toast {
+                position: fixed;
+                left: 50%;
+                bottom: 152px;
+                z-index: 5;
+                max-width: calc(100% - 36px);
+                transform: translateX(-50%) translateY(20px);
+                padding: 12px 16px;
+                border-radius: 14px;
+                background: white;
+                color: #251a31;
+                font-size: 14px;
+                opacity: 0;
+                pointer-events: none;
+                transition: .2s ease;
+              }
+
+              .toast.show {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+              }
+
+              [hidden] {
+                display: none !important;
+              }
+            </style>
+          </head>
+
+          <body>
+            <div class="app">
+              <header>
+                <div class="logo">♫</div>
+                <div class="brand">
+                  <strong>PT34-MUSIC</strong>
+                  <span>Tu música, tu biblioteca</span>
+                </div>
+                <button class="install" id="installButton" hidden>Instalar</button>
+              </header>
+
+              <main>
+                <section class="page active" id="inicio">
+                  <input class="searchbox" id="homeSearch" placeholder="Buscar en tu biblioteca" readonly>
+
+                  <div class="hero">
+                    <h1>Todo listo</h1>
+                    <p>Crea tu biblioteca personal y reproduce enlaces de audio propios o autorizados compatibles con tu navegador.</p>
+                    <button class="primary" data-go="biblioteca">AÑADIR FUENTE</button>
+                  </div>
+
+                  <h2>Tus colecciones</h2>
+                  <div class="row">
+                    <div class="card">
+                      <div class="card-icon">♥</div>
+                      <strong>Favoritos</strong>
+                      <span>Tus temas guardados</span>
+                    </div>
+                    <div class="card">
+                      <div class="card-icon">♫</div>
+                      <strong>Mi música</strong>
+                      <span>Tu colección personal</span>
+                    </div>
+                    <div class="card">
+                      <div class="card-icon">◉</div>
+                      <strong>Podcast</strong>
+                      <span>Programas y episodios</span>
+                    </div>
+                  </div>
+
+                  <h2>Empieza por aquí</h2>
+                  <div class="list">
+                    <button class="item" data-go="biblioteca">
+                      <div class="item-icon">＋</div>
+                      <div class="item-text">
+                        <strong>Añade una fuente autorizada</strong>
+                        <span>Enlace directo de audio compatible con web.</span>
+                      </div>
+                      <div class="arrow">›</div>
+                    </button>
+
+                    <button class="item" id="favoritesButton">
+                      <div class="item-icon">♥</div>
+                      <div class="item-text">
+                        <strong>Crea tus favoritos</strong>
+                        <span>Guarda artistas, podcasts y colecciones.</span>
+                      </div>
+                      <div class="arrow">›</div>
+                    </button>
+                  </div>
+                </section>
+
+                <section class="page" id="buscar">
+                  <h2>Buscar</h2>
+                  <input class="searchbox" id="searchInput" placeholder="Artistas, álbumes o listas">
+
+                  <div class="list" id="searchResults" style="margin-top:18px">
+                    <div class="item result" data-name="Favoritos música">
+                      <div class="item-icon">♥</div>
+                      <div class="item-text"><strong>Favoritos</strong><span>Tu colección guardada</span></div>
+                    </div>
+                    <div class="item result" data-name="Mi música biblioteca">
+                      <div class="item-icon">♫</div>
+                      <div class="item-text"><strong>Mi música</strong><span>Tu biblioteca personal</span></div>
+                    </div>
+                    <div class="item result" data-name="Podcast episodios">
+                      <div class="item-icon">◉</div>
+                      <div class="item-text"><strong>Podcast</strong><span>Programas y episodios</span></div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="page" id="biblioteca">
+                  <h2>Biblioteca</h2>
+
+                  <div class="empty" id="emptyLibrary">
+                    <strong>Tu biblioteca está vacía</strong>
+                    Añade una URL directa de audio que tengas derecho a utilizar. La fuente se guarda solamente en este navegador.
+                  </div>
+
+                  <form class="source-form" id="sourceForm" style="margin-top:18px">
+                    <input id="sourceName" maxlength="60" placeholder="Nombre de la fuente">
+                    <input id="sourceUrl" type="url" placeholder="https://ejemplo.com/audio.mp3" required>
+                    <button type="submit">GUARDAR Y REPRODUCIR</button>
+                  </form>
+
+                  <div class="player" id="playerPanel" hidden>
+                    <strong id="playerName"></strong>
+                    <span>Fuente local autorizada</span>
+                    <audio id="audioPlayer" controls preload="metadata"></audio>
+                  </div>
+                </section>
+
+                <section class="page" id="perfil">
+                  <h2>Perfil</h2>
+                  <div class="list">
+                    <div class="item">
+                      <div class="item-icon">☺</div>
+                      <div class="item-text">
+                        <strong>PT34-MUSIC</strong>
+                        <span>Edición PWA</span>
+                      </div>
+                    </div>
+                    <div class="item">
+                      <div class="item-icon">ⓘ</div>
+                      <div class="item-text">
+                        <strong>Acerca de</strong>
+                        <span>Biblioteca y reproductor web personal.</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </main>
+            </div>
+
+            <div class="mini" id="miniPlayer" hidden>
+              <strong id="miniName">Tu reproductor</strong>
+              <span>Audio preparado para reproducir</span>
+            </div>
+
+            <nav>
+              <button class="tab active" data-tab="inicio">⌂<br>Inicio</button>
+              <button class="tab" data-tab="buscar">⌕<br>Buscar</button>
+              <button class="tab" data-tab="biblioteca">♫<br>Biblioteca</button>
+              <button class="tab" data-tab="perfil">☺<br>Perfil</button>
+            </nav>
+
+            <div class="toast" id="toast"></div>
+
+            <script>
+              const pages = document.querySelectorAll(".page");
+              const tabs = document.querySelectorAll(".tab");
+              const toast = document.querySelector("#toast");
+              const audio = document.querySelector("#audioPlayer");
+              const sourceForm = document.querySelector("#sourceForm");
+              const sourceName = document.querySelector("#sourceName");
+              const sourceUrl = document.querySelector("#sourceUrl");
+              const playerPanel = document.querySelector("#playerPanel");
+              const emptyLibrary = document.querySelector("#emptyLibrary");
+              const playerName = document.querySelector("#playerName");
+              const miniPlayer = document.querySelector("#miniPlayer");
+              const miniName = document.querySelector("#miniName");
+
+              function showToast(message) {
+                toast.textContent = message;
+                toast.classList.add("show");
+                setTimeout(() => toast.classList.remove("show"), 2600);
+              }
+
+              function goTo(id) {
+                pages.forEach(page => page.classList.toggle("active", page.id === id));
+                tabs.forEach(tab => tab.classList.toggle("active", tab.dataset.tab === id));
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }
+
+              tabs.forEach(tab => {
+                tab.addEventListener("click", () => goTo(tab.dataset.tab));
+              });
+
+              document.querySelectorAll("[data-go]").forEach(button => {
+                button.addEventListener("click", () => goTo(button.dataset.go));
+              });
+
+              document.querySelector("#homeSearch").addEventListener("click", () => {
+                goTo("buscar");
+                setTimeout(() => document.querySelector("#searchInput").focus(), 100);
+              });
+
+              document.querySelector("#favoritesButton").addEventListener("click", () => {
+                showToast("Los favoritos se activarán cuando añadas contenido.");
+              });
+
+              document.querySelector("#searchInput").addEventListener("input", event => {
+                const value = event.target.value.trim().toLowerCase();
+                document.querySelectorAll(".result").forEach(result => {
+                  result.hidden = value && !result.dataset.name.toLowerCase().includes(value);
+                });
+              });
+
+              function loadSource(source) {
+                playerName.textContent = source.name;
+                miniName.textContent = source.name;
+                audio.src = source.url;
+                playerPanel.hidden = false;
+                miniPlayer.hidden = false;
+                emptyLibrary.hidden = true;
+              }
+
+              function restoreSource() {
+                const saved = localStorage.getItem("pt34_music_source");
+                if (!saved) return;
+                try {
+                  loadSource(JSON.parse(saved));
+                } catch (_) {
+                  localStorage.removeItem("pt34_music_source");
+                }
+              }
+
+              sourceForm.addEventListener("submit", event => {
+                event.preventDefault();
+
+                const url = sourceUrl.value.trim();
+                const name = sourceName.value.trim() || "Mi fuente de audio";
+
+                try {
+                  const parsed = new URL(url);
+                  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+                    throw new Error("Protocolo no válido");
+                  }
+                } catch (_) {
+                  showToast("Introduce una URL válida que empiece por https://");
+                  return;
+                }
+
+                const source = { name, url };
+                localStorage.setItem("pt34_music_source", JSON.stringify(source));
+                loadSource(source);
+                audio.play().catch(() => {});
+                showToast("Fuente guardada en este navegador.");
+              });
+
+              let installPrompt;
+              const installButton = document.querySelector("#installButton");
+
+              window.addEventListener("beforeinstallprompt", event => {
+                event.preventDefault();
+                installPrompt = event;
+                installButton.hidden = false;
+              });
+
+              installButton.addEventListener("click", async () => {
+                if (!installPrompt) {
+                  showToast("Usa “Añadir a pantalla de inicio” en el menú del navegador.");
+                  return;
+                }
+                installPrompt.prompt();
+                await installPrompt.userChoice;
+                installPrompt = null;
+                installButton.hidden = true;
+              });
+
+              restoreSource();
+            </script>
+          </body>
+          </html>
+          HTML
+
+          cat > site/manifest.webmanifest <<'JSON'
           {
             "name": "PT34-MUSIC",
             "short_name": "PT34-MUSIC",
-            "id": "./",
             "start_url": "./",
             "scope": "./",
             "display": "standalone",
             "background_color": "#111015",
-            "theme_color": "#9B5CFF",
-            "description": "Biblioteca y reproductor personal PT34-MUSIC",
+            "theme_color": "#9b5cff",
+            "description": "Biblioteca y reproductor web personal PT34-MUSIC",
             "lang": "es-ES",
             "icons": [
               {
-                "src": "icons/Icon-192.png",
-                "sizes": "192x192",
-                "type": "image/png"
-              },
-              {
-                "src": "icons/Icon-512.png",
-                "sizes": "512x512",
-                "type": "image/png"
+                "src": "./icon.svg",
+                "sizes": "any",
+                "type": "image/svg+xml",
+                "purpose": "any"
               }
             ]
           }
           JSON
 
-      - name: Descargar dependencias
-        run: flutter pub get
+          cat > site/icon.svg <<'SVG'
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+            <rect width="512" height="512" rx="118" fill="#9b5cff"/>
+            <path fill="#fff" d="M330 102v214a85 85 0 1 1-42-74V162l-128 35v163a85 85 0 1 1-42-74V164l202-62c20-6 40 9 40 30z"/>
+          </svg>
+          SVG
 
-      - name: Compilar PWA
-        run: |
-          flutter build web \
-            --release \
-            --target lib/main_pwa.dart \
-            --base-href "/pt34-music-spotube/" \
-            --no-tree-shake-icons
+          cat > site/sw.js <<'JS'
+          const CACHE = "pt34-music-static-v1";
+          const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
-      - name: Activar instalación PWA
-        run: |
-          cat > build/web/sw.js <<'JS'
-          const CACHE_NAME = 'pt34-music-v1';
-          const APP_FILES = ['./', './index.html', './manifest.json'];
-
-          self.addEventListener('install', (event) => {
+          self.addEventListener("install", event => {
             event.waitUntil(
-              caches.open(CACHE_NAME)
-                .then((cache) => cache.addAll(APP_FILES))
-                .then(() => self.skipWaiting())
+              caches.open(CACHE).then(cache => cache.addAll(FILES))
             );
+            self.skipWaiting();
           });
 
-          self.addEventListener('activate', (event) => {
+          self.addEventListener("activate", event => {
             event.waitUntil(self.clients.claim());
           });
 
-          self.addEventListener('fetch', (event) => {
-            if (event.request.method !== 'GET') return;
+          self.addEventListener("fetch", event => {
+            if (event.request.method !== "GET") return;
+
+            const url = new URL(event.request.url);
+
+            if (url.origin !== self.location.origin) return;
+
             event.respondWith(
-              caches.match(event.request).then((cached) => {
+              caches.match(event.request).then(cached => {
                 return cached || fetch(event.request);
               })
             );
@@ -609,35 +714,36 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          file = Path("build/web/index.html")
+          file = Path("site/index.html")
           html = file.read_text(encoding="utf-8")
           html = html.replace(
               "</body>",
               """<script>
               if ("serviceWorker" in navigator) {
-                window.addEventListener("load", function () {
+                window.addEventListener("load", () => {
                   navigator.serviceWorker.register("./sw.js", { scope: "./" });
                 });
               }
-              </script></body>""",
+              </script></body>"""
           )
           file.write_text(html, encoding="utf-8")
           PY
 
       - name: Subir PWA a Pages
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
-          path: build/web
+          path: site
 
   deploy:
     name: Publicar PT34-MUSIC
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Publicar
+      - name: Publicar PWA
         id: deployment
         uses: actions/deploy-pages@v4
