@@ -1,24 +1,19 @@
-name: PT34-MUSIC · APK Spotube original
+name: PT34-MUSIC · APK con catálogo reparado
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
-    paths:
-      - ".github/workflows/spotube-release-binary.yml"
 
 permissions:
   contents: read
 
 jobs:
   android:
-    name: Compilar APK Spotube original
+    name: Compilar APK PT34-MUSIC
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
     steps:
-      - name: Descargar Spotube original
+      - name: Descargar proyecto
         uses: actions/checkout@v4
 
       - name: Instalar Flutter
@@ -40,7 +35,127 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Crear firma temporal de prueba
+      - name: Corregir proveedor de catálogo
+        run: |
+          set -e
+
+          rm -rf /tmp/pt34-brainz
+
+          git clone --depth 1 \
+            https://github.com/KRTirtho/spotube-plugin-musicbrainz-listenbrainz.git \
+            /tmp/pt34-brainz
+
+          cat > /tmp/pt34-brainz/src/segments/browse.ht <<'HT'
+          import "module:std" as std
+          import { Recommendations } from "../common/recommendations.ht"
+
+          var FutureUtils = std.FutureUtils
+          var Duration = std.Duration
+
+          class BrowseEndpoint {
+            var lbApi
+            var mbApi
+            final username: string
+            var recommendations: Recommendations
+
+            construct (this.lbApi, this.mbApi, this.username) {
+              recommendations = Recommendations(lbApi, mbApi, username)
+            }
+
+            fun sections({offset: int, limit: int}) {
+              if (username == null || username.isEmpty) {
+                return FutureUtils.chain(
+                  [() => []],
+                  delay: Duration(milliseconds: 1),
+                ).then((_) {
+                  return {
+                    limit: limit ?? 25,
+                    nextOffset: null,
+                    total: 0,
+                    hasMore: false,
+                    items: [],
+                  }.toJson()
+                })
+              }
+
+              var sectionsFutures = [
+                () => recommendations.generateTopArtistRadios(),
+                () => recommendations.generateMoodPlaylists(),
+                () => recommendations.getCreatedForPlaylists(),
+              ]
+
+              return FutureUtils.chain(
+                sectionsFutures,
+                delay: Duration(milliseconds: 200),
+              ).then((sections) {
+                return {
+                  limit: limit ?? 25,
+                  nextOffset: null,
+                  total: 1,
+                  hasMore: false,
+                  items: sections,
+                }.toJson()
+              })
+            }
+
+            fun sectionItems(id: string, {offset: int, limit: int}) {
+              return FutureUtils.chain(
+                [() => []],
+                delay: Duration(milliseconds: 1),
+              ).then((_) {
+                return {
+                  limit: limit ?? 25,
+                  nextOffset: null,
+                  total: 0,
+                  hasMore: false,
+                  items: [],
+                }.toJson()
+              })
+            }
+          }
+
+          export { BrowseEndpoint }
+          HT
+
+          cd /tmp/pt34-brainz
+
+          dart pub global activate hetu_script_dev_tools
+
+          export PATH="$PATH:$HOME/.pub-cache/bin"
+
+          mkdir -p build/archive
+
+          hetu compile src/plugin.ht build/plugin.out
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          file = Path("plugin.json")
+          data = json.loads(file.read_text())
+
+          data["version"] = "1.0.1"
+          data["name"] = "PT34 MusicBrainz Catalog"
+          data["description"] = "Catálogo MusicBrainz para PT34-MUSIC sin error de inicio"
+
+          file.write_text(
+              json.dumps(data, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          PY
+
+          cp plugin.json build/plugin.out assets/logo.png build/archive/
+
+          cd build/archive
+          zip -q -r ../plugin.smplug .
+          cd ../..
+
+          mkdir -p assets/plugins/spotube-plugin-musicbrainz-listenbrainz
+
+          cp build/plugin.smplug \
+            assets/plugins/spotube-plugin-musicbrainz-listenbrainz/plugin.smplug
+
+      - name: Crear firma temporal
         run: |
           keytool -genkeypair -noprompt \
             -keystore android/app/upload-keystore.jks \
@@ -59,20 +174,17 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
-      - name: Instalar dependencias reales de Spotube
+      - name: Instalar dependencias
         run: |
           flutter pub get
           dart cli/cli.dart install-dependencies --platform=android --arch=all
 
-      - name: Compilar APK Android real
+      - name: Compilar APK
         env:
           CHANNEL: stable
           FLUTTER_VERSION: "3.35.2"
           DOTENV: |
             ENABLE_UPDATE_CHECK=0
-            LASTFM_API_KEY=
-            LASTFM_API_SECRET=
-            RELEASE_CHANNEL=stable
             HIDE_DONATIONS=1
         run: |
           dart cli/cli.dart build --arch=all android
@@ -80,7 +192,7 @@ jobs:
       - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PT34-MUSIC-Spotube-APK
+          name: PT34-MUSIC-APK-REPARADO
           path: build/Spotube-android-all-arch.apk
           if-no-files-found: error
           retention-days: 14
