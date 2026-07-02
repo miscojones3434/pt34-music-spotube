@@ -1,52 +1,226 @@
-name: PT34-MUSIC-PWA
+name: PT34-MUSIC PWA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
-      - main
-  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: pt34-music-pages
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Crear PWA PT34-MUSIC
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout source
+      - name: Descargar proyecto
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Instalar Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.2'
-          channel: 'stable'
+          flutter-version: "3.35.2"
+          channel: stable
+          cache: true
 
-      - name: Limpieza profunda
-        run: flutter clean
+      - name: Desactivar analítica
+        run: flutter config --no-analytics
 
-      - name: Fetch packages
+      - name: Descargar dependencias
         run: flutter pub get
 
-      - name: Build multidispositivo web app
-        run: flutter build web --release --web-renderer html --no-tree-shake-icons
+      - name: Crear entrada web PT34-MUSIC
+        run: |
+          cat > lib/main_pwa.dart <<'DART'
+          import 'package:flutter/material.dart';
 
-      - name: Upload Pages artifact
+          void main() {
+            runApp(const Pt34MusicPwa());
+          }
+
+          class Pt34MusicPwa extends StatelessWidget {
+            const Pt34MusicPwa({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                title: 'PT34-MUSIC',
+                theme: ThemeData(
+                  brightness: Brightness.dark,
+                  useMaterial3: true,
+                  colorScheme: ColorScheme.fromSeed(
+                    seedColor: const Color(0xFF9B5CFF),
+                    brightness: Brightness.dark,
+                  ),
+                ),
+                home: const HomePage(),
+              );
+            }
+          }
+
+          class HomePage extends StatelessWidget {
+            const HomePage({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+                body: SafeArea(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 540),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 118,
+                              height: 118,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF9B5CFF),
+                                borderRadius: BorderRadius.circular(32),
+                              ),
+                              child: const Icon(
+                                Icons.music_note_rounded,
+                                size: 72,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            const Text(
+                              'PT34-MUSIC',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'PWA instalada y preparada.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 17,
+                                color: Colors.white.withValues(alpha: 0.72),
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            FilledButton.icon(
+                              onPressed: () {},
+                              icon: const Icon(Icons.play_arrow_rounded),
+                              label: const Text('PRÓXIMAMENTE'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+          }
+          DART
+
+      - name: Preparar manifest PWA
+        run: |
+          cat > web/manifest.json <<'JSON'
+          {
+            "name": "PT34-MUSIC",
+            "short_name": "PT34-MUSIC",
+            "id": "./",
+            "start_url": "./",
+            "scope": "./",
+            "display": "standalone",
+            "background_color": "#101018",
+            "theme_color": "#9B5CFF",
+            "description": "PT34-MUSIC",
+            "lang": "es-ES",
+            "icons": [
+              {
+                "src": "icons/Icon-192.png",
+                "sizes": "192x192",
+                "type": "image/png"
+              },
+              {
+                "src": "icons/Icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png"
+              }
+            ]
+          }
+          JSON
+
+      - name: Compilar PWA
+        run: |
+          flutter build web \
+            --release \
+            --target lib/main_pwa.dart \
+            --base-href "/pt34-music-spotube/" \
+            --no-tree-shake-icons
+
+      - name: Añadir service worker
+        run: |
+          cat > build/web/sw.js <<'JS'
+          self.addEventListener('install', () => self.skipWaiting());
+
+          self.addEventListener('activate', (event) => {
+            event.waitUntil(self.clients.claim());
+          });
+
+          self.addEventListener('fetch', (event) => {
+            if (event.request.method !== 'GET') return;
+            event.respondWith(fetch(event.request));
+          });
+          JS
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("build/web/index.html")
+          html = path.read_text(encoding="utf-8")
+          script = """
+          <script>
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+              navigator.serviceWorker.register('./sw.js', { scope: './' });
+            });
+          }
+          </script>
+          """
+          path.write_text(
+              html.replace("</body>", script + "\n</body>"),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Subir PWA a Pages
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
 
   deploy:
+    name: Publicar PT34-MUSIC
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
-      - name: Deploy to GitHub Pages
+      - name: Publicar
         id: deployment
         uses: actions/deploy-pages@v4
