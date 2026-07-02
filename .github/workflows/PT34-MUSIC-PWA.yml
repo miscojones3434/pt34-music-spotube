@@ -1,4 +1,4 @@
-name: PT34-MUSIC · Publicar en gh-pages
+name: PT34-MUSIC · Publicar como IOS
 
 on:
   workflow_dispatch:
@@ -14,10 +14,10 @@ permissions:
   contents: write
 
 jobs:
-  build-and-publish:
-    name: Compilar y publicar PT34-MUSIC
+  crear-pwa:
+    name: Compilar PWA y subir a pt34-pwa
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 12
 
     steps:
       - name: Descargar proyecto
@@ -30,7 +30,7 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Crear web mínima
+      - name: Crear proyecto web ligero
         run: |
           rm -rf .pt34-web
 
@@ -41,17 +41,31 @@ jobs:
 
           cp lib/main_web.dart .pt34-web/lib/main.dart
 
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(".pt34-web/web/index.html")
+          html = path.read_text(encoding="utf-8")
+          html = html.replace(
+              "<title>pt34_music_web</title>",
+              "<title>PT34-MUSIC</title>",
+          )
+          path.write_text(html, encoding="utf-8")
+          PY
+
       - name: Compilar PT34-MUSIC
         working-directory: .pt34-web
         run: |
           flutter pub get
-
           flutter build web \
             --release \
             --base-href "/pt34-music-spotube/"
 
-      - name: Preparar PWA
+      - name: Preparar PWA final
         run: |
+          cp .pt34-web/build/web/index.html \
+            .pt34-web/build/web/404.html
+
           if [ -f assets/branding/pt34-music-logo.png ]; then
             cp assets/branding/pt34-music-logo.png \
               .pt34-web/build/web/pt34-music-logo.png
@@ -59,9 +73,6 @@ jobs:
             cp .pt34-web/build/web/icons/Icon-512.png \
               .pt34-web/build/web/pt34-music-logo.png
           fi
-
-          cp .pt34-web/build/web/index.html \
-            .pt34-web/build/web/404.html
 
           touch .pt34-web/build/web/.nojekyll
 
@@ -87,29 +98,28 @@ jobs:
           }
           JSON
 
-      - name: Publicar en rama gh-pages
+      - name: Subir PWA a pt34-pwa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           SHA: ${{ github.sha }}
         run: |
-          rm -rf .pt34-pages
-          mkdir .pt34-pages
+          rm -rf .pt34-pwa
+          mkdir .pt34-pwa
 
-          cp -a .pt34-web/build/web/. .pt34-pages/
+          cp -a .pt34-web/build/web/. .pt34-pwa/
 
-          cd .pt34-pages
+          cd .pt34-pwa
 
-          git init --initial-branch=gh-pages
+          git init --initial-branch=pt34-pwa
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add .
-
-          git commit -m "PT34-MUSIC web ${SHA}"
+          git add --all
+          git commit -m "PT34-MUSIC PWA ${SHA}"
 
           git remote add origin \
             "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git"
 
-          git push --force origin HEAD:gh-pages
+          git push --force origin HEAD:pt34-pwa
