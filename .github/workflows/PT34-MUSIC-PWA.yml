@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    name: Crear PWA PT34-MUSIC
+    name: Crear Inicio PT34-MUSIC
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -38,20 +38,17 @@ jobs:
       - name: Desactivar analítica
         run: flutter config --no-analytics
 
-      - name: Descargar dependencias
-        run: flutter pub get
-
-      - name: Crear entrada web PT34-MUSIC
+      - name: Crear Inicio PT34-MUSIC
         run: |
           cat > lib/main_pwa.dart <<'DART'
           import 'package:flutter/material.dart';
 
           void main() {
-            runApp(const Pt34MusicPwa());
+            runApp(const Pt34MusicApp());
           }
 
-          class Pt34MusicPwa extends StatelessWidget {
-            const Pt34MusicPwa({super.key});
+          class Pt34MusicApp extends StatelessWidget {
+            const Pt34MusicApp({super.key});
 
             @override
             Widget build(BuildContext context) {
@@ -59,77 +56,483 @@ jobs:
                 debugShowCheckedModeBanner: false,
                 title: 'PT34-MUSIC',
                 theme: ThemeData(
-                  brightness: Brightness.dark,
                   useMaterial3: true,
+                  brightness: Brightness.dark,
                   colorScheme: ColorScheme.fromSeed(
                     seedColor: const Color(0xFF9B5CFF),
                     brightness: Brightness.dark,
                   ),
                 ),
-                home: const HomePage(),
+                home: const MusicShell(),
               );
             }
           }
 
-          class HomePage extends StatelessWidget {
-            const HomePage({super.key});
+          class MusicShell extends StatefulWidget {
+            const MusicShell({super.key});
+
+            @override
+            State<MusicShell> createState() => _MusicShellState();
+          }
+
+          class _MusicShellState extends State<MusicShell> {
+            static const background = Color(0xFF111015);
+            static const surface = Color(0xFF1A1720);
+            static const purple = Color(0xFF9B5CFF);
+
+            int tab = 0;
+            bool playing = false;
+
+            void message(String text) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(text)),
+              );
+            }
+
+            void playDemo() {
+              setState(() => playing = true);
+              message('Añade tus fuentes autorizadas desde Biblioteca.');
+            }
 
             @override
             Widget build(BuildContext context) {
+              final pages = [
+                homePage(),
+                searchPage(),
+                libraryPage(),
+                profilePage(),
+              ];
+
               return Scaffold(
+                backgroundColor: background,
                 body: SafeArea(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 540),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                  child: IndexedStack(
+                    index: tab,
+                    children: pages,
+                  ),
+                ),
+                bottomNavigationBar: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (playing)
+                      Container(
+                        color: const Color(0xFF25202C),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        child: Row(
                           children: [
                             Container(
-                              width: 118,
-                              height: 118,
+                              width: 42,
+                              height: 42,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF9B5CFF),
-                                borderRadius: BorderRadius.circular(32),
+                                color: purple,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(
-                                Icons.music_note_rounded,
-                                size: 72,
-                                color: Colors.white,
+                              child: const Icon(Icons.music_note_rounded),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Tu reproductor',
+                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Conecta una fuente para reproducir',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 28),
-                            const Text(
-                              'PT34-MUSIC',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'PWA instalada y preparada.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 17,
-                                color: Colors.white.withValues(alpha: 0.72),
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-                            FilledButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.play_arrow_rounded),
-                              label: const Text('PRÓXIMAMENTE'),
+                            IconButton(
+                              onPressed: () => setState(() => playing = false),
+                              icon: const Icon(Icons.pause_rounded),
                             ),
                           ],
                         ),
                       ),
+                    NavigationBar(
+                      selectedIndex: tab,
+                      onDestinationSelected: (value) {
+                        setState(() => tab = value);
+                      },
+                      destinations: const [
+                        NavigationDestination(
+                          icon: Icon(Icons.home_outlined),
+                          selectedIcon: Icon(Icons.home_rounded),
+                          label: 'Inicio',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.search_rounded),
+                          label: 'Buscar',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.library_music_outlined),
+                          selectedIcon: Icon(Icons.library_music_rounded),
+                          label: 'Biblioteca',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.person_outline_rounded),
+                          selectedIcon: Icon(Icons.person_rounded),
+                          label: 'Perfil',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            Widget homePage() {
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: purple,
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: const Icon(Icons.music_note_rounded, size: 30),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'PT34-MUSIC',
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Tu música, tu biblioteca',
+                              style: TextStyle(color: Colors.white60),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => setState(() => tab = 3),
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    readOnly: true,
+                    onTap: () => setState(() => tab = 1),
+                    decoration: InputDecoration(
+                      hintText: 'Busca en tu biblioteca',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      fillColor: surface,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
+                  const SizedBox(height: 22),
+                  Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(26),
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF9B5CFF),
+                          Color(0xFF5C35AE),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Todo listo',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Crea tu biblioteca y reproduce tus enlaces autorizados.',
+                                style: TextStyle(height: 1.35),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          onPressed: playDemo,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF542A9C),
+                          ),
+                          child: const Icon(Icons.play_arrow_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  const Text(
+                    'Tus colecciones',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    height: 126,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        collectionCard(
+                          icon: Icons.favorite_rounded,
+                          title: 'Favoritos',
+                          subtitle: 'Tus temas guardados',
+                        ),
+                        collectionCard(
+                          icon: Icons.queue_music_rounded,
+                          title: 'Mi música',
+                          subtitle: 'Tu colección personal',
+                        ),
+                        collectionCard(
+                          icon: Icons.podcasts_rounded,
+                          title: 'Podcast',
+                          subtitle: 'Programas y episodios',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  const Text(
+                    'Empieza por aquí',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  setupTile(
+                    Icons.add_link_rounded,
+                    'Añade una fuente autorizada',
+                    'Enlaces de audio compatibles con el navegador.',
+                    () => setState(() => tab = 2),
+                  ),
+                  setupTile(
+                    Icons.favorite_border_rounded,
+                    'Crea tus favoritos',
+                    'Guarda tus artistas, podcasts y colecciones.',
+                    () => message('Los favoritos se activarán al añadir contenido.'),
+                  ),
+                ],
+              );
+            }
+
+            Widget collectionCard({
+              required IconData icon,
+              required String title,
+              required String subtitle,
+            }) {
+              return Container(
+                width: 170,
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(20),
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(icon, color: const Color(0xFFD8C2FF), size: 30),
+                    const Spacer(),
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            Widget setupTile(
+              IconData icon,
+              String title,
+              String subtitle,
+              VoidCallback action,
+            ) {
+              return Card(
+                color: surface,
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  onTap: action,
+                  leading: CircleAvatar(
+                    backgroundColor: purple.withOpacity(.2),
+                    child: Icon(icon, color: const Color(0xFFD8C2FF)),
+                  ),
+                  title: Text(title),
+                  subtitle: Text(subtitle),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                ),
+              );
+            }
+
+            Widget searchPage() {
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Buscar',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Artistas, álbumes o listas',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        filled: true,
+                        fillColor: surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Explora tu contenido cuando añadas una fuente.',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            Widget libraryPage() {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          color: purple.withOpacity(.18),
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        child: const Icon(
+                          Icons.library_music_rounded,
+                          color: Color(0xFFD8C2FF),
+                          size: 52,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      const Text(
+                        'Tu biblioteca está vacía',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Añade enlaces propios o autorizados compatibles con el reproductor web.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white60, height: 1.4),
+                      ),
+                      const SizedBox(height: 22),
+                      FilledButton.icon(
+                        onPressed: () => message(
+                          'El módulo de fuentes se añade en el siguiente paso.',
+                        ),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('AÑADIR FUENTE'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            Widget profilePage() {
+              return ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  const Text(
+                    'Perfil',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Card(
+                    color: surface,
+                    child: const ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: purple,
+                        child: Icon(Icons.person_rounded),
+                      ),
+                      title: Text('PT34-MUSIC'),
+                      subtitle: Text('Edición PWA'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    color: surface,
+                    child: ListTile(
+                      leading: const Icon(Icons.info_outline_rounded),
+                      title: const Text('Acerca de'),
+                      subtitle: const Text(
+                        'Biblioteca y reproductor web personal.',
+                      ),
+                      onTap: () => message('PT34-MUSIC PWA'),
+                    ),
+                  ),
+                ],
               );
             }
           }
@@ -145,9 +548,9 @@ jobs:
             "start_url": "./",
             "scope": "./",
             "display": "standalone",
-            "background_color": "#101018",
+            "background_color": "#111015",
             "theme_color": "#9B5CFF",
-            "description": "PT34-MUSIC",
+            "description": "Biblioteca y reproductor personal PT34-MUSIC",
             "lang": "es-ES",
             "icons": [
               {
@@ -164,6 +567,9 @@ jobs:
           }
           JSON
 
+      - name: Descargar dependencias
+        run: flutter pub get
+
       - name: Compilar PWA
         run: |
           flutter build web \
@@ -172,10 +578,19 @@ jobs:
             --base-href "/pt34-music-spotube/" \
             --no-tree-shake-icons
 
-      - name: Añadir service worker
+      - name: Activar instalación PWA
         run: |
           cat > build/web/sw.js <<'JS'
-          self.addEventListener('install', () => self.skipWaiting());
+          const CACHE_NAME = 'pt34-music-v1';
+          const APP_FILES = ['./', './index.html', './manifest.json'];
+
+          self.addEventListener('install', (event) => {
+            event.waitUntil(
+              caches.open(CACHE_NAME)
+                .then((cache) => cache.addAll(APP_FILES))
+                .then(() => self.skipWaiting())
+            );
+          });
 
           self.addEventListener('activate', (event) => {
             event.waitUntil(self.clients.claim());
@@ -183,28 +598,30 @@ jobs:
 
           self.addEventListener('fetch', (event) => {
             if (event.request.method !== 'GET') return;
-            event.respondWith(fetch(event.request));
+            event.respondWith(
+              caches.match(event.request).then((cached) => {
+                return cached || fetch(event.request);
+              })
+            );
           });
           JS
 
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("build/web/index.html")
-          html = path.read_text(encoding="utf-8")
-          script = """
-          <script>
-          if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-              navigator.serviceWorker.register('./sw.js', { scope: './' });
-            });
-          }
-          </script>
-          """
-          path.write_text(
-              html.replace("</body>", script + "\n</body>"),
-              encoding="utf-8",
+          file = Path("build/web/index.html")
+          html = file.read_text(encoding="utf-8")
+          html = html.replace(
+              "</body>",
+              """<script>
+              if ("serviceWorker" in navigator) {
+                window.addEventListener("load", function () {
+                  navigator.serviceWorker.register("./sw.js", { scope: "./" });
+                });
+              }
+              </script></body>""",
           )
+          file.write_text(html, encoding="utf-8")
           PY
 
       - name: Subir PWA a Pages
