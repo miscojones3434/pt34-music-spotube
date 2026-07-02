@@ -1,14 +1,20 @@
-name: PT34-MUSIC · APK con catálogo reparado
+name: PT34-MUSIC · APK Android final
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/spotube-release-binary.yml"
+      - "assets/branding/pt34-music-logo.png"
 
 permissions:
   contents: read
 
 jobs:
   android:
-    name: Compilar APK PT34-MUSIC
+    name: Compilar PT34-MUSIC Android
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
@@ -35,127 +41,108 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Corregir proveedor de catálogo
+      - name: Descargar dependencias
+        run: flutter pub get
+
+      - name: Aplicar branding PT34-MUSIC
         run: |
-          set -e
+          set -euo pipefail
 
-          rm -rf /tmp/pt34-brainz
+          LOGO="assets/branding/pt34-music-logo.png"
 
-          git clone --depth 1 \
-            https://github.com/KRTirtho/spotube-plugin-musicbrainz-listenbrainz.git \
-            /tmp/pt34-brainz
+          test -f "$LOGO"
 
-          cat > /tmp/pt34-brainz/src/segments/browse.ht <<'HT'
-          import "module:std" as std
-          import { Recommendations } from "../common/recommendations.ht"
-
-          var FutureUtils = std.FutureUtils
-          var Duration = std.Duration
-
-          class BrowseEndpoint {
-            var lbApi
-            var mbApi
-            final username: string
-            var recommendations: Recommendations
-
-            construct (this.lbApi, this.mbApi, this.username) {
-              recommendations = Recommendations(lbApi, mbApi, username)
-            }
-
-            fun sections({offset: int, limit: int}) {
-              if (username == null || username.isEmpty) {
-                return FutureUtils.chain(
-                  [() => []],
-                  delay: Duration(milliseconds: 1),
-                ).then((_) {
-                  return {
-                    limit: limit ?? 25,
-                    nextOffset: null,
-                    total: 0,
-                    hasMore: false,
-                    items: [],
-                  }.toJson()
-                })
-              }
-
-              var sectionsFutures = [
-                () => recommendations.generateTopArtistRadios(),
-                () => recommendations.generateMoodPlaylists(),
-                () => recommendations.getCreatedForPlaylists(),
-              ]
-
-              return FutureUtils.chain(
-                sectionsFutures,
-                delay: Duration(milliseconds: 200),
-              ).then((sections) {
-                return {
-                  limit: limit ?? 25,
-                  nextOffset: null,
-                  total: 1,
-                  hasMore: false,
-                  items: sections,
-                }.toJson()
-              })
-            }
-
-            fun sectionItems(id: string, {offset: int, limit: int}) {
-              return FutureUtils.chain(
-                [() => []],
-                delay: Duration(milliseconds: 1),
-              ).then((_) {
-                return {
-                  limit: limit ?? 25,
-                  nextOffset: null,
-                  total: 0,
-                  hasMore: false,
-                  items: [],
-                }.toJson()
-              })
-            }
-          }
-
-          export { BrowseEndpoint }
-          HT
-
-          cd /tmp/pt34-brainz
-
-          dart pub global activate hetu_script_dev_tools
-
-          export PATH="$PATH:$HOME/.pub-cache/bin"
-
-          mkdir -p build/archive
-
-          hetu compile src/plugin.ht build/plugin.out
+          for TARGET in \
+            "assets/branding/spotube-logo.png" \
+            "assets/branding/spotube-logo-light.png" \
+            "assets/branding/spotube-logo-foreground.png" \
+            "assets/branding/spotube-logo-item.png" \
+            "assets/branding/spotube-logo-macos.png" \
+            "assets/branding/spotube-logo_android12.png" \
+            "assets/spotube-logo.png" \
+            "assets/spotube-logo_android12.png" \
+            "assets/branding.png"
+          do
+            mkdir -p "$(dirname "$TARGET")"
+            cp "$LOGO" "$TARGET"
+          done
 
           python3 - <<'PY'
-          import json
           from pathlib import Path
 
-          file = Path("plugin.json")
-          data = json.loads(file.read_text())
-
-          data["version"] = "1.0.1"
-          data["name"] = "PT34 MusicBrainz Catalog"
-          data["description"] = "Catálogo MusicBrainz para PT34-MUSIC sin error de inicio"
-
-          file.write_text(
-              json.dumps(data, ensure_ascii=False, indent=2),
+          gradle = Path("android/app/build.gradle")
+          text = gradle.read_text(encoding="utf-8")
+          old = 'resValue "string", "app_name_en", "Spotube"'
+          if old not in text:
+              raise SystemExit("No se encontró el nombre Android original.")
+          gradle.write_text(
+              text.replace(old, 'resValue "string", "app_name_en", "PT34-MUSIC"'),
               encoding="utf-8",
           )
+
+          main = Path("lib/main.dart")
+          text = main.read_text(encoding="utf-8")
+          old = "title: 'Spotube'"
+          if old not in text:
+              raise SystemExit("No se encontró el título Flutter original.")
+          main.write_text(
+              text.replace(old, "title: 'PT34-MUSIC'"),
+              encoding="utf-8",
+          )
+
+          env = Path("lib/collections/env.dart")
+          text = env.read_text(encoding="utf-8")
+          old = "static bool get hideDonations => _hideDonations == 1;"
+          if old in text:
+              env.write_text(
+                  text.replace(old, "static bool get hideDonations => true;"),
+                  encoding="utf-8",
+              )
           PY
 
-          cp plugin.json build/plugin.out assets/logo.png build/archive/
+      - name: Crear icono PT34-MUSIC
+        run: |
+          cat > flutter_launcher_icons.yaml <<'YAML'
+          flutter_launcher_icons:
+            android: true
+            ios: false
+            web:
+              generate: false
+            windows:
+              generate: false
+            macos:
+              generate: false
+            image_path: "assets/branding/pt34-music-logo.png"
+            min_sdk_android: 24
+            adaptive_icon_background: "#06010A"
+            adaptive_icon_foreground: "assets/branding/pt34-music-logo.png"
+          YAML
 
-          cd build/archive
-          zip -q -r ../plugin.smplug .
-          cd ../..
+          dart run flutter_launcher_icons
 
-          mkdir -p assets/plugins/spotube-plugin-musicbrainz-listenbrainz
+      - name: Crear splash PT34-MUSIC
+        run: |
+          cat > flutter_native_splash.yaml <<'YAML'
+          flutter_native_splash:
+            color: "#06010A"
+            color_dark: "#06010A"
+            image: assets/branding/pt34-music-logo.png
+            image_dark: assets/branding/pt34-music-logo.png
+            android: true
+            ios: false
+            web: false
+            fullscreen: true
 
-          cp build/plugin.smplug \
-            assets/plugins/spotube-plugin-musicbrainz-listenbrainz/plugin.smplug
+            android_12:
+              color: "#06010A"
+              icon_background_color: "#06010A"
+              image: assets/branding/pt34-music-logo.png
+              image_dark: assets/branding/pt34-music-logo.png
+          YAML
 
-      - name: Crear firma temporal
+          dart run flutter_native_splash:create
+
+      - name: Crear firma de compilación
         run: |
           keytool -genkeypair -noprompt \
             -keystore android/app/upload-keystore.jks \
@@ -174,25 +161,29 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
-      - name: Instalar dependencias
+      - name: Instalar motor Android
         run: |
-          flutter pub get
           dart cli/cli.dart install-dependencies --platform=android --arch=all
 
-      - name: Compilar APK
+      - name: Compilar APK PT34-MUSIC
         env:
           CHANNEL: stable
           FLUTTER_VERSION: "3.35.2"
           DOTENV: |
             ENABLE_UPDATE_CHECK=0
             HIDE_DONATIONS=1
+            LASTFM_API_KEY=
+            LASTFM_API_SECRET=
+            RELEASE_CHANNEL=stable
         run: |
           dart cli/cli.dart build --arch=all android
+          cp build/Spotube-android-all-arch.apk \
+            build/PT34-MUSIC-android-all-arch.apk
 
-      - name: Guardar APK
+      - name: Guardar APK final
         uses: actions/upload-artifact@v4
         with:
-          name: PT34-MUSIC-APK-REPARADO
-          path: build/Spotube-android-all-arch.apk
+          name: PT34-MUSIC-APK-FINAL
+          path: build/PT34-MUSIC-android-all-arch.apk
           if-no-files-found: error
           retention-days: 14
