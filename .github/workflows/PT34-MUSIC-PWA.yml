@@ -1,102 +1,52 @@
-name: PT34-MUSIC · APK Android
+name: PT34-MUSIC-PWA
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - master
+      - main
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
-  android-apk:
-    name: Generar APK Android
-    runs-on: ubuntu-22.04
-
-    env:
-      FLUTTER_VERSION: "3.35.2"
-      CHANNEL: "stable"
+  build:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Descargar proyecto
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Instalar Flutter
-        uses: subosito/flutter-action@v2.18.0
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
+          flutter-version: '3.35.2'
+          channel: 'stable'
 
-      - name: Instalar Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: "17"
-          cache: gradle
+      - name: Limpieza profunda
+        run: flutter clean
 
-      - name: Instalar Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
-      - name: Crear configuración de compilación
-        run: |
-          cat > .env <<'EOF'
-          ENABLE_UPDATE_CHECK=0
-          LASTFM_API_KEY=
-          LASTFM_API_SECRET=
-          RELEASE_CHANNEL=stable
-          HIDE_DONATIONS=1
-          EOF
-
-      - name: Descargar dependencias Flutter
+      - name: Fetch packages
         run: flutter pub get
 
-      - name: Preparar dependencias Android
-        run: dart cli/cli.dart install-dependencies --platform=android --arch=all
+      - name: Build multidispositivo web app
+        run: flutter build web --release --web-renderer html --no-tree-shake-icons
 
-      - name: Generar archivos necesarios
-        run: |
-          dart run build_runner build --delete-conflicting-outputs
-          flutter gen-l10n
-
-      - name: Crear firma temporal para APK
-        run: |
-          mkdir -p android/app/app
-
-          keytool -genkeypair -v \
-            -keystore android/app/upload-keystore.jks \
-            -storepass pt34music \
-            -alias pt34music \
-            -keypass pt34music \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=PT34-MUSIC, OU=PT34, O=PT34-MUSIC, L=Madrid, ST=Madrid, C=ES" \
-            -noprompt
-
-          cp android/app/upload-keystore.jks android/app/app/upload-keystore.jks
-
-          cat > android/key.properties <<'EOF'
-          storePassword=pt34music
-          keyPassword=pt34music
-          keyAlias=pt34music
-          storeFile=upload-keystore.jks
-          EOF
-
-      - name: Compilar APK Android
-        run: |
-          dart cli/cli.dart build --arch=all android
-          find build -name "*.apk" -type f -print
-          APK_FILE="$(find build -name "*.apk" -type f | head -n 1)"
-          test -n "$APK_FILE"
-          cp "$APK_FILE" build/PT34-MUSIC-android-all-arch.apk
-
-      - name: Subir APK terminada
-        uses: actions/upload-artifact@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: PT34-MUSIC-APK
-          path: build/PT34-MUSIC-android-all-arch.apk
-          if-no-files-found: error
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
