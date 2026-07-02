@@ -1,4 +1,4 @@
-name: PT34-MUSIC · Spotube Web
+name: PT34-MUSIC · Publicar en gh-pages
 
 on:
   workflow_dispatch:
@@ -13,15 +13,11 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: pt34-music-web-build
-  cancel-in-progress: true
-
 jobs:
   build-and-publish:
     name: Compilar y publicar PT34-MUSIC
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    timeout-minutes: 15
 
     steps:
       - name: Descargar proyecto
@@ -34,7 +30,7 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Crear proyecto web mínimo
+      - name: Crear web mínima
         run: |
           rm -rf .pt34-web
 
@@ -45,19 +41,7 @@ jobs:
 
           cp lib/main_web.dart .pt34-web/lib/main.dart
 
-          python3 - <<'PY'
-          from pathlib import Path
-
-          file = Path(".pt34-web/web/index.html")
-          html = file.read_text(encoding="utf-8")
-          html = html.replace(
-              "<title>pt34_music_web</title>",
-              "<title>PT34-MUSIC</title>",
-          )
-          file.write_text(html, encoding="utf-8")
-          PY
-
-      - name: Compilar PT34-MUSIC Web
+      - name: Compilar PT34-MUSIC
         working-directory: .pt34-web
         run: |
           flutter pub get
@@ -66,10 +50,15 @@ jobs:
             --release \
             --base-href "/pt34-music-spotube/"
 
-      - name: Aplicar logo y configuración PWA
+      - name: Preparar PWA
         run: |
-          cp assets/branding/pt34-music-logo.png \
-            .pt34-web/build/web/pt34-music-logo.png
+          if [ -f assets/branding/pt34-music-logo.png ]; then
+            cp assets/branding/pt34-music-logo.png \
+              .pt34-web/build/web/pt34-music-logo.png
+          else
+            cp .pt34-web/build/web/icons/Icon-512.png \
+              .pt34-web/build/web/pt34-music-logo.png
+          fi
 
           cp .pt34-web/build/web/index.html \
             .pt34-web/build/web/404.html
@@ -85,7 +74,7 @@ jobs:
             "display": "standalone",
             "background_color": "#100E14",
             "theme_color": "#9B5CFF",
-            "description": "PT34-MUSIC · Spotube Web",
+            "description": "PT34-MUSIC",
             "lang": "es-ES",
             "icons": [
               {
@@ -98,11 +87,11 @@ jobs:
           }
           JSON
 
-      - name: Publicar directamente en gh-pages
+      - name: Publicar en rama gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
           rm -rf .pt34-pages
           mkdir .pt34-pages
@@ -116,10 +105,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add --all
-          git commit -m "PT34-MUSIC web ${GITHUB_SHA}"
+          git add .
+
+          git commit -m "PT34-MUSIC web ${SHA}"
 
           git remote add origin \
-            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git"
 
           git push --force origin HEAD:gh-pages
