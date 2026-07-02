@@ -112,7 +112,7 @@ dependencies:
   visibility_detector: ^0.4.0+2
   web_socket_channel: ^3.0.1
   wikipedia_api: ^0.1.0
-  win32_registry: ^1.1.5
+  win32_registry: ^1.1.0
   window_manager: ^0.4.3
   youtube_explode_dart: ^3.1.0
   yt_dlp_dart:
@@ -143,7 +143,6 @@ dependencies:
   pub_semver: ^2.2.0
   change_case: ^1.1.0
   flutter_secure_storage: ^9.2.4
-  # Have to use the git version due to unresponsive .move() after .add()
   media_kit:
     git:
       url: https://github.com/media-kit/media-kit
@@ -235,12 +234,10 @@ flutter:
     - packages/flutter_undraw/assets/undraw/no_data.svg
     - packages/flutter_undraw/assets/undraw/process.svg
     - packages/flutter_undraw/assets/undraw/stars.svg
-    # hetu script bytecode
     - packages/hetu_std/assets/bytecode/std.out
     - packages/hetu_otp_util/assets/bytecode/otp_util.out
     - packages/hetu_spotube_plugin/assets/bytecode/spotube_plugin.out
-    # NewPipe binaries (desktop only)
-    # - packages/flutter_new_pipe_extractor/assets/
+
   fonts:
     - family: RadixIcons
       fonts:
