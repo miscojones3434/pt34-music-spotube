@@ -1,4 +1,4 @@
-name: PT34-MUSIC · APK estable con branding
+name: PT34-MUSIC · APK final
 
 on:
   workflow_dispatch:
@@ -8,6 +8,9 @@ on:
     paths:
       - ".github/workflows/spotube-release-binary.yml"
       - "assets/branding/pt34-music-logo.png"
+      - "android/**"
+      - "lib/**"
+      - "activation/**"
 
 permissions:
   contents: read
@@ -16,7 +19,7 @@ jobs:
   android:
     name: Compilar PT34-MUSIC
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 40
 
     steps:
       - name: Descargar proyecto
@@ -60,11 +63,12 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
-      - name: Aplicar logo, nombre e icono PT34-MUSIC
+      - name: Aplicar identidad PT34-MUSIC
         run: |
           set -euo pipefail
 
           LOGO="assets/branding/pt34-music-logo.png"
+
           test -s "$LOGO"
 
           for TARGET in \
@@ -74,16 +78,20 @@ jobs:
             "assets/branding/spotube-logo-macos.png" \
             "assets/spotube-logo.png" \
             "assets/spotube-logo_android12.png" \
-            "assets/branding.png" \
-            "android/app/src/main/res/drawable-v21/background.png"
+            "assets/branding/branding.png"
           do
-            mkdir -p "$(dirname "$TARGET")"
             cp "$LOGO" "$TARGET"
           done
 
           find android/app/src/main/res \
             -type f \
-            \( -name 'ic_launcher*.png' -o -name 'ic_launcher_foreground*.png' \) \
+            \( \
+              -name "ic_launcher*.png" -o \
+              -name "splash.png" -o \
+              -name "android12splash.png" -o \
+              -name "branding.png" -o \
+              -name "android12branding.png" \
+            \) \
             -print0 |
           while IFS= read -r -d '' FILE; do
             cp "$LOGO" "$FILE"
@@ -92,19 +100,66 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          file = Path("android/app/build.gradle")
-          text = file.read_text(encoding="utf-8")
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
 
-          old = 'resValue "string", "app_name_en", "Spotube"'
-          new = 'resValue "string", "app_name_en", "PT34-MUSIC"'
+              if old not in text:
+                  raise SystemExit(
+                      f"No se encontró el texto esperado: {path}"
+                  )
 
-          if old not in text:
-              raise SystemExit("No se encontró el nombre Android de Spotube.")
+              file.write_text(
+                  text.replace(old, new, 1),
+                  encoding="utf-8",
+              )
 
-          file.write_text(text.replace(old, new, 1), encoding="utf-8")
+          replace_once(
+              "android/app/build.gradle",
+              'resValue "string", "app_name_en", "Spotube"',
+              'resValue "string", "app_name_en", "PT34-MUSIC"',
+          )
+
+          replace_once(
+              "lib/main.dart",
+              'await localNotifier.setup(appName: "Spotube");',
+              'await localNotifier.setup(appName: "PT34-MUSIC");',
+          )
+
+          replace_once(
+              "lib/main.dart",
+              "title: 'Spotube'",
+              "title: 'PT34-MUSIC'",
+          )
+
+          replace_once(
+              "lib/modules/root/sidebar/sidebar.dart",
+              'child: const Text("Spotube"),',
+              '''child: Image.asset(
+                  "assets/branding/spotube-logo-light.png",
+                  width: 158,
+                  height: 48,
+                ),''',
+          )
+
+          replace_once(
+              "lib/pages/home/home.dart",
+              'child: const Text("Spotube"),',
+              '''child: Image.asset(
+                  "assets/branding/spotube-logo-light.png",
+                  width: 158,
+                  height: 48,
+                ),''',
+          )
+
+          replace_once(
+              "lib/pages/getting_started/sections/greeting.dart",
+              'const Text("Spotube").semiBold().h4(),',
+              'const Text("PT34-MUSIC").semiBold().h4(),',
+          )
           PY
 
-      - name: Instalar dependencias reales de Spotube
+      - name: Instalar dependencias reales
         run: |
           flutter pub get
           dart cli/cli.dart install-dependencies --platform=android --arch=all
@@ -121,6 +176,7 @@ jobs:
             HIDE_DONATIONS=1
         run: |
           dart cli/cli.dart build --arch=all android
+
           cp build/Spotube-android-all-arch.apk \
             build/PT34-MUSIC-android-all-arch.apk
 
