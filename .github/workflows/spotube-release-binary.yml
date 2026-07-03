@@ -10,16 +10,15 @@ on:
       - "assets/branding/pt34-music-logo.png"
       - "android/**"
       - "lib/**"
-      - "activation/**"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   android:
     name: Compilar PT34-MUSIC
     runs-on: ubuntu-22.04
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     steps:
       - name: Descargar proyecto
@@ -63,7 +62,7 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
-      - name: Aplicar identidad PT34-MUSIC
+      - name: Aplicar PT34-MUSIC y activación
         run: |
           set -euo pipefail
 
@@ -75,10 +74,11 @@ jobs:
             "assets/branding/spotube-logo.png" \
             "assets/branding/spotube-logo-light.png" \
             "assets/branding/spotube-logo-foreground.png" \
+            "assets/branding/spotube-logo-item.png" \
             "assets/branding/spotube-logo-macos.png" \
             "assets/spotube-logo.png" \
             "assets/spotube-logo_android12.png" \
-            "assets/branding/branding.png"
+            "assets/branding.png"
           do
             cp "$LOGO" "$TARGET"
           done
@@ -86,7 +86,8 @@ jobs:
           find android/app/src/main/res \
             -type f \
             \( \
-              -name "ic_launcher*.png" -o \
+              -name "ic_launcher.png" -o \
+              -name "ic_launcher_foreground.png" -o \
               -name "splash.png" -o \
               -name "android12splash.png" -o \
               -name "branding.png" -o \
@@ -97,6 +98,354 @@ jobs:
             cp "$LOGO" "$FILE"
           done
 
+          mkdir -p lib/modules/activation
+
+          cat > lib/modules/activation/pt34_activation_gate.dart <<'DART'
+          import 'dart:convert';
+          import 'dart:math';
+
+          import 'package:dio/dio.dart';
+          import 'package:flutter/material.dart';
+          import 'package:flutter/services.dart';
+          import 'package:flutter_native_splash/flutter_native_splash.dart';
+          import 'package:shared_preferences/shared_preferences.dart';
+
+          class PT34ActivationGate extends StatefulWidget {
+            const PT34ActivationGate({
+              super.key,
+              required this.child,
+            });
+
+            final Widget child;
+
+            @override
+            State<PT34ActivationGate> createState() =>
+                _PT34ActivationGateState();
+          }
+
+          class _PT34ActivationGateState extends State<PT34ActivationGate> {
+            static const _deviceKey = 'pt34_music_device_id';
+            static const _codeKey = 'pt34_music_activation_code';
+
+            static const _activationUrl =
+                'https://raw.githubusercontent.com/'
+                'miscojones3434/pt34-music-spotube/master/'
+                'activation/allowed_devices.json';
+
+            final _controller = TextEditingController();
+            final _dio = Dio();
+
+            bool _loading = true;
+            bool _checking = false;
+            bool _activated = false;
+
+            String _deviceId = '';
+            String _message = '';
+
+            @override
+            void initState() {
+              super.initState();
+              _start();
+            }
+
+            @override
+            void dispose() {
+              _controller.dispose();
+              super.dispose();
+            }
+
+            Future<void> _start() async {
+              final prefs = await SharedPreferences.getInstance();
+
+              var deviceId = prefs.getString(_deviceKey);
+
+              if (deviceId == null || deviceId.isEmpty) {
+                deviceId = _makeDeviceId();
+                await prefs.setString(_deviceKey, deviceId);
+              }
+
+              final savedCode = prefs.getString(_codeKey) ?? '';
+
+              if (!mounted) return;
+
+              setState(() {
+                _deviceId = deviceId!;
+                _controller.text = savedCode;
+                _loading = false;
+              });
+
+              FlutterNativeSplash.remove();
+
+              if (savedCode.isNotEmpty) {
+                await _validate(savedCode, automatic: true);
+              }
+            }
+
+            String _makeDeviceId() {
+              const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+              final random = Random.secure();
+
+              String section() {
+                return List.generate(
+                  5,
+                  (_) => alphabet[random.nextInt(alphabet.length)],
+                ).join();
+              }
+
+              return 'PT34-${section()}-${section()}-${section()}-${section()}';
+            }
+
+            Future<bool> _isAllowed(String code) async {
+              final response = await _dio.get<String>(
+                '$_activationUrl?t=${DateTime.now().millisecondsSinceEpoch}',
+                options: Options(
+                  responseType: ResponseType.plain,
+                  headers: const {
+                    'Cache-Control': 'no-cache',
+                  },
+                ),
+              );
+
+              final raw = response.data ?? '';
+              final decoded = jsonDecode(raw);
+
+              if (decoded is! Map) return false;
+
+              final devices = decoded['devices'];
+
+              if (devices is! List) return false;
+
+              for (final item in devices) {
+                if (item is! Map) continue;
+
+                final enabled = item['enabled'] != false;
+                final remoteDeviceId = item['device_id']?.toString() ?? '';
+                final remoteCode = item['code']?.toString() ?? '';
+
+                if (
+                  enabled &&
+                  remoteDeviceId == _deviceId &&
+                  remoteCode == code
+                ) {
+                  return true;
+                }
+              }
+
+              return false;
+            }
+
+            Future<void> _validate(
+              String rawCode, {
+              bool automatic = false,
+            }) async {
+              final code = rawCode.trim();
+
+              if (code.isEmpty) {
+                if (!automatic && mounted) {
+                  setState(() {
+                    _message = 'Introduce el código de activación.';
+                  });
+                }
+                return;
+              }
+
+              if (mounted) {
+                setState(() {
+                  _checking = true;
+                  _message = '';
+                });
+              }
+
+              try {
+                final allowed = await _isAllowed(code);
+
+                if (!mounted) return;
+
+                if (!allowed) {
+                  setState(() {
+                    _checking = false;
+                    _message = automatic
+                        ? 'Este móvil ya no está autorizado.'
+                        : 'Código no autorizado para este móvil.';
+                  });
+                  return;
+                }
+
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString(_codeKey, code);
+
+                if (!mounted) return;
+
+                setState(() {
+                  _checking = false;
+                  _activated = true;
+                });
+              } catch (_) {
+                if (!mounted) return;
+
+                setState(() {
+                  _checking = false;
+                  _message =
+                      'No se pudo comprobar la activación. '
+                      'Revisa la conexión e inténtalo otra vez.';
+                });
+              }
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              if (_activated) return widget.child;
+
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                title: 'PT34-MUSIC',
+                theme: ThemeData(
+                  brightness: Brightness.dark,
+                  useMaterial3: true,
+                  colorSchemeSeed: const Color(0xFF9B5CFF),
+                ),
+                home: Scaffold(
+                  backgroundColor: const Color(0xFF050309),
+                  body: SafeArea(
+                    child: Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 440),
+                          child: Card(
+                            color: const Color(0xFF15111C),
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: _loading
+                                  ? const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(40),
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    )
+                                  : Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Image.asset(
+                                          'assets/branding/spotube-logo-light.png',
+                                          height: 94,
+                                          fit: BoxFit.contain,
+                                        ),
+                                        const SizedBox(height: 24),
+                                        const Text(
+                                          'Activar PT34-MUSIC',
+                                          style: TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        const Text(
+                                          'Este móvil necesita autorización.',
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 20),
+                                        const Text(
+                                          'Código del dispositivo',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        SelectableText(
+                                          _deviceId,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            letterSpacing: 1.3,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        TextButton.icon(
+                                          onPressed: () async {
+                                            await Clipboard.setData(
+                                              ClipboardData(text: _deviceId),
+                                            );
+
+                                            if (!mounted) return;
+
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Código copiado',
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(Icons.copy),
+                                          label: const Text('Copiar código'),
+                                        ),
+                                        const SizedBox(height: 18),
+                                        TextField(
+                                          controller: _controller,
+                                          textCapitalization:
+                                              TextCapitalization.characters,
+                                          autocorrect: false,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Código de activación',
+                                            border: OutlineInputBorder(),
+                                          ),
+                                          onSubmitted: _checking
+                                              ? null
+                                              : (value) => _validate(value),
+                                        ),
+                                        if (_message.isNotEmpty) ...[
+                                          const SizedBox(height: 14),
+                                          Text(
+                                            _message,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              color: Colors.orangeAccent,
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 20),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: FilledButton(
+                                            onPressed: _checking
+                                                ? null
+                                                : () => _validate(
+                                                      _controller.text,
+                                                    ),
+                                            child: _checking
+                                                ? const SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  )
+                                                : const Text('Activar'),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        TextButton(
+                                          onPressed: SystemNavigator.pop,
+                                          child: const Text('Salir'),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+          }
+          DART
+
           python3 - <<'PY'
           from pathlib import Path
 
@@ -106,7 +455,7 @@ jobs:
 
               if old not in text:
                   raise SystemExit(
-                      f"No se encontró el texto esperado: {path}"
+                      f"No se encontró el texto esperado en: {path}"
                   )
 
               file.write_text(
@@ -120,16 +469,63 @@ jobs:
               'resValue "string", "app_name_en", "PT34-MUSIC"',
           )
 
-          replace_once(
-              "lib/main.dart",
-              'await localNotifier.setup(appName: "Spotube");',
-              'await localNotifier.setup(appName: "PT34-MUSIC");',
+          main = Path("lib/main.dart")
+          main_text = main.read_text(encoding="utf-8")
+
+          import_line = (
+              "import 'package:flutter_new_pipe_extractor/"
+              "flutter_new_pipe_extractor.dart';"
           )
 
-          replace_once(
-              "lib/main.dart",
+          activation_import = (
+              "import 'package:spotube/modules/activation/"
+              "pt34_activation_gate.dart';"
+          )
+
+          if activation_import not in main_text:
+              if import_line not in main_text:
+                  raise SystemExit("No se encontró el punto de importación.")
+              main_text = main_text.replace(
+                  import_line,
+                  f"{import_line}\n{activation_import}",
+                  1,
+              )
+
+          if 'child: const Spotube(),' not in main_text:
+              raise SystemExit("No se encontró el inicio de la aplicación.")
+
+          main_text = main_text.replace(
+              'child: const Spotube(),',
+              'child: const PT34ActivationGate(child: Spotube()),',
+              1,
+          )
+
+          if 'await localNotifier.setup(appName: "Spotube");' in main_text:
+              main_text = main_text.replace(
+                  'await localNotifier.setup(appName: "Spotube");',
+                  'await localNotifier.setup(appName: "PT34-MUSIC");',
+                  1,
+              )
+
+          if "title: 'Spotube'" not in main_text:
+              raise SystemExit("No se encontró el título de la aplicación.")
+
+          main_text = main_text.replace(
               "title: 'Spotube'",
               "title: 'PT34-MUSIC'",
+              1,
+          )
+
+          main.write_text(main_text, encoding="utf-8")
+
+          replace_once(
+              "lib/pages/home/home.dart",
+              'child: const Text("Spotube"),',
+              '''child: Image.asset(
+                        "assets/branding/spotube-logo-light.png",
+                        height: 34,
+                        fit: BoxFit.contain,
+                      ),''',
           )
 
           replace_once(
@@ -137,18 +533,8 @@ jobs:
               'child: const Text("Spotube"),',
               '''child: Image.asset(
                   "assets/branding/spotube-logo-light.png",
-                  width: 158,
-                  height: 48,
-                ),''',
-          )
-
-          replace_once(
-              "lib/pages/home/home.dart",
-              'child: const Text("Spotube"),',
-              '''child: Image.asset(
-                  "assets/branding/spotube-logo-light.png",
-                  width: 158,
-                  height: 48,
+                  height: 36,
+                  fit: BoxFit.contain,
                 ),''',
           )
 
@@ -159,7 +545,7 @@ jobs:
           )
           PY
 
-      - name: Instalar dependencias reales
+      - name: Instalar dependencias reales de Spotube
         run: |
           flutter pub get
           dart cli/cli.dart install-dependencies --platform=android --arch=all
@@ -178,12 +564,20 @@ jobs:
           dart cli/cli.dart build --arch=all android
 
           cp build/Spotube-android-all-arch.apk \
-            build/PT34-MUSIC-android-all-arch.apk
+            build/PT34-MUSIC.apk
 
-      - name: Guardar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: PT34-MUSIC-APK-FINAL
-          path: build/PT34-MUSIC-android-all-arch.apk
-          if-no-files-found: error
-          retention-days: 14
+      - name: Publicar APK descargable
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: pt34-music-${{ github.run_number }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              build/PT34-MUSIC.apk \
+              --clobber
+          else
+            gh release create "$TAG" \
+              build/PT34-MUSIC.apk \
+              --title "PT34-MUSIC APK" \
+              --notes "APK Android PT34-MUSIC"
+          fi
