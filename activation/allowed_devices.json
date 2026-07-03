@@ -1,3 +1,9 @@
 {
-  "devices": []
+  "devices": [
+    {
+      "device_id": "PT34-86N94-8CB7S-YHXNC-G6KFP",
+      "code": "PT34-6JX9-QV5M-4K7R",
+      "enabled": true
+    }
+  ]
 }
