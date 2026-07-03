@@ -1,4 +1,4 @@
-name: PT34-MUSIC · APK con logo
+name: PT34-MUSIC · APK final
 
 on:
   workflow_dispatch:
@@ -14,16 +14,16 @@ permissions:
 
 jobs:
   android:
-    name: Compilar PT34-MUSIC Android
+    name: Compilar PT34-MUSIC
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 35
 
     steps:
       - name: Descargar proyecto
         uses: actions/checkout@v4
 
       - name: Instalar Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.18.0
         with:
           flutter-version: "3.35.2"
           channel: stable
@@ -41,91 +41,7 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Descargar dependencias
-        run: flutter pub get
-
-      - name: Aplicar marca PT34-MUSIC
-        run: |
-          set -euo pipefail
-
-          LOGO="assets/branding/pt34-music-logo.png"
-          test -f "$LOGO"
-
-          cp "$LOGO" assets/branding/spotube-logo.png
-          cp "$LOGO" assets/branding/spotube-logo-light.png
-          cp "$LOGO" assets/branding/spotube-logo-foreground.png
-          cp "$LOGO" assets/branding/spotube-logo-macos.png
-          cp "$LOGO" assets/spotube-logo.png
-          cp "$LOGO" assets/spotube-logo_android12.png
-          cp "$LOGO" assets/branding.png
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def replace_exact(path, old, new):
-              text = path.read_text(encoding="utf-8")
-              if old not in text:
-                  raise SystemExit(f"No se encontró el texto esperado en {path}")
-              path.write_text(text.replace(old, new), encoding="utf-8")
-
-          replace_exact(
-              Path("android/app/build.gradle"),
-              'resValue "string", "app_name_en", "Spotube"',
-              'resValue "string", "app_name_en", "PT34-MUSIC"',
-          )
-
-          replace_exact(
-              Path("lib/main.dart"),
-              "title: 'Spotube'",
-              "title: 'PT34-MUSIC'",
-          )
-
-          player = Path("lib/services/audio_player/audio_player.dart")
-          if player.exists():
-              text = player.read_text(encoding="utf-8")
-              player.write_text(
-                  text.replace('title: "Spotube"', 'title: "PT34-MUSIC"'),
-                  encoding="utf-8",
-              )
-
-          l10n = Path("lib/l10n")
-          if l10n.exists():
-              for file in l10n.glob("*.arb"):
-                  text = file.read_text(encoding="utf-8")
-                  file.write_text(
-                      text.replace("Spotube", "PT34-MUSIC"),
-                      encoding="utf-8",
-                  )
-          PY
-
-      - name: Crear icono PT34-MUSIC
-        run: |
-          dart run flutter_launcher_icons
-
-      - name: Crear splash PT34-MUSIC
-        run: |
-          cat > .pt34-splash.yaml <<'YAML'
-          flutter_native_splash:
-            color: "#050309"
-            color_dark: "#050309"
-            image: assets/branding/pt34-music-logo.png
-            image_dark: assets/branding/pt34-music-logo.png
-            branding: assets/branding/pt34-music-logo.png
-            android: true
-            ios: false
-            web: false
-            fullscreen: true
-
-            android_12:
-              color: "#050309"
-              icon_background_color: "#050309"
-              image: assets/branding/pt34-music-logo.png
-              image_dark: assets/branding/pt34-music-logo.png
-          YAML
-
-          dart run flutter_native_splash:create -p .pt34-splash.yaml
-
-      - name: Crear firma de prueba
+      - name: Crear firma temporal
         run: |
           keytool -genkeypair -noprompt \
             -keystore android/app/upload-keystore.jks \
@@ -144,11 +60,76 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
-      - name: Instalar motor Android
+      - name: Aplicar logo y nombre PT34-MUSIC
+        run: |
+          set -euo pipefail
+
+          LOGO="assets/branding/pt34-music-logo.png"
+
+          test -s "$LOGO"
+
+          cp "$LOGO" assets/branding/spotube-logo.png
+          cp "$LOGO" assets/branding/spotube-logo-foreground.png
+          cp "$LOGO" assets/branding/spotube-logo-macos.png
+          cp "$LOGO" assets/spotube-logo.png
+          cp "$LOGO" assets/spotube-logo_android12.png
+          cp "$LOGO" assets/branding.png
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          gradle = Path("android/app/build.gradle")
+          text = gradle.read_text(encoding="utf-8")
+
+          old = 'resValue "string", "app_name_en", "Spotube"'
+          new = 'resValue "string", "app_name_en", "PT34-MUSIC"'
+
+          if old not in text:
+              raise SystemExit("No se encontró el nombre Android esperado.")
+
+          gradle.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          main = Path("lib/main.dart")
+          text = main.read_text(encoding="utf-8")
+
+          old = "title: 'Spotube'"
+          new = "title: 'PT34-MUSIC'"
+
+          if old not in text:
+              raise SystemExit("No se encontró el título Flutter esperado.")
+
+          main.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+          flutter pub get
+
+          dart run flutter_launcher_icons
+
+          cat > .pt34-splash.yaml <<'YAML'
+          flutter_native_splash:
+            color: "#050309"
+            color_dark: "#050309"
+            image: assets/branding/pt34-music-logo.png
+            image_dark: assets/branding/pt34-music-logo.png
+            fullscreen: true
+            android: true
+            ios: false
+            web: false
+
+            android_12:
+              color: "#050309"
+              icon_background_color: "#050309"
+              image: assets/branding/pt34-music-logo.png
+              image_dark: assets/branding/pt34-music-logo.png
+          YAML
+
+          dart run flutter_native_splash:create --path=.pt34-splash.yaml
+
+      - name: Instalar dependencias reales de Spotube
         run: |
           dart cli/cli.dart install-dependencies --platform=android --arch=all
 
-      - name: Compilar APK
+      - name: Compilar APK Android
         env:
           CHANNEL: stable
           FLUTTER_VERSION: "3.35.2"
@@ -164,7 +145,7 @@ jobs:
       - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
-          name: PT34-MUSIC-APK
+          name: PT34-MUSIC-APK-FINAL
           path: build/PT34-MUSIC-android-all-arch.apk
           if-no-files-found: error
           retention-days: 14
